@@ -185,6 +185,10 @@ app.post('/api/upload-audio', upload.array('audios', 20), async (req, res) => {
     for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const displayName = (customNames && customNames[i]) ? customNames[i] : file.originalname;
+        
+        // Langsung tambahkan hitungan limit terpakai saat file mulai diproses upload
+        db.limits[discordId].count += 1;
+
         try {
             const fileStream = fs.createReadStream(file.path);
             const stats = fs.statSync(file.path);
@@ -209,8 +213,6 @@ app.post('/api/upload-audio', upload.array('audios', 20), async (req, res) => {
                 const pollResult = await pollOperationStatus(responseData.path, robloxUser.apiKey);
                 if (pollResult.success) {
                     results.push({ name: displayName, type: 'Audio', assetId: pollResult.assetId, status: 'Success', time: new Date().toLocaleString() });
-                    // MENAMBAHKAN COUNTER LIMIT HARIAN SETIAP BERHASIL UPLOAD AUDIO
-                    db.limits[discordId].count += 1;
                 } else {
                     results.push({ name: displayName, type: 'Audio', assetId: 'Gagal', status: pollResult.message, time: new Date().toLocaleString() });
                 }
@@ -251,6 +253,10 @@ app.post('/api/upload-image', upload.array('images', 10), async (req, res) => {
         const file = files[i];
         const baseName = (customNames && customNames[i]) ? customNames[i] : file.originalname.substring(0, file.originalname.lastIndexOf('.')) || file.originalname;
         const fileNameJpg = baseName + '.jpg';
+        
+        // Langsung tambahkan hitungan limit terpakai saat gambar mulai diproses upload
+        db.limits[discordId].count += 1;
+
         try {
             const fileStream = fs.createReadStream(file.path);
             const stats = fs.statSync(file.path);
@@ -275,8 +281,6 @@ app.post('/api/upload-image', upload.array('images', 10), async (req, res) => {
                 const pollResult = await pollOperationStatus(responseData.path, robloxUser.apiKey);
                 if (pollResult.success) {
                     results.push({ name: fileNameJpg, type: 'Image', assetId: pollResult.assetId, status: 'Success', time: new Date().toLocaleString() });
-                    // MENAMBAHKAN COUNTER LIMIT HARIAN SETIAP BERHASIL UPLOAD GAMBAR
-                    db.limits[discordId].count += 1;
                 } else {
                     results.push({ name: fileNameJpg, type: 'Image', assetId: 'Gagal', status: pollResult.message, time: new Date().toLocaleString() });
                 }
