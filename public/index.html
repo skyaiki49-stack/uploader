@@ -14,6 +14,20 @@
     </style>
 </head>
 <body class="min-h-screen flex flex-col md:flex-row antialiased selection:bg-white selection:text-black">
+    <!-- DISCORD LOGIN OVERLAY (MANDATORY) -->
+    <div id="discord-login-modal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-6">
+        <div class="glass-panel p-8 rounded-2xl max-w-md w-full text-center space-y-6 border border-white/10 shadow-2xl">
+            <div class="w-16 h-16 bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 rounded-2xl mx-auto flex items-center justify-center text-2xl font-bold">💎</div>
+            <div>
+                <h1 class="text-xl font-bold text-white tracking-tight">Login Diperlukan</h1>
+                <p class="text-xs text-zinc-400 mt-1">Sila authorize menggunakan akaun Discord anda untuk mengakses panel uploader dan kuota harian.</p>
+            </div>
+            <a href="/auth/discord" class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition tracking-wide flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20">
+                Login dengan Discord
+            </a>
+        </div>
+    </div>
+
     <aside class="w-full md:w-64 glass-panel border-r border-white/10 p-6 flex flex-col justify-between shrink-0">
         <div>
             <div class="flex items-center gap-3 mb-10 pb-4 border-b border-white/10">
@@ -30,7 +44,7 @@
                 <button onclick="switchTab('settings')" id="btn-settings" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg border border-transparent transition text-left text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5">Account Settings</button>
             </nav>
         </div>
-        <div id="sidebar-profile" class="glass-panel p-3 rounded-lg mt-6 hidden border border-white/10 bg-black/40">
+        <div id="sidebar-profile" class="glass-panel p-3 rounded-lg mt-6 border border-white/10 bg-black/40">
             <div class="flex items-center gap-3">
                 <img id="sidebar-avatar" src="" alt="Avatar" class="w-8 h-8 rounded-full border border-white/20 object-cover">
                 <div class="overflow-hidden">
@@ -129,37 +143,106 @@
         <section id="tab-settings" class="tab-content space-y-6 hidden">
             <div>
                 <h2 class="text-xl font-semibold text-white tracking-tight">Account Settings</h2>
-                <p class="text-xs text-zinc-400 mt-0.5">Konfigurasi akaun Roblox.</p>
+                <p class="text-xs text-zinc-400 mt-0.5">Konfigurasi akaun Discord & Roblox.</p>
             </div>
-            <div class="glass-panel p-6 rounded-xl space-y-5">
-                <div id="login-form-container" class="space-y-4">
-                    <div>
-                        <label class="block text-xs font-medium text-zinc-300 mb-1.5">Roblox User ID</label>
-                        <input type="text" id="input-userid" placeholder="Contoh: 123456789" class="input-box w-full px-3.5 py-2.5 rounded-lg text-xs">
+            <div class="space-y-5">
+                <!-- DISCORD PROFILE CARD -->
+                <div class="glass-panel p-6 rounded-xl flex items-center justify-between">
+                    <div class="flex items-center gap-4">
+                        <img id="settings-discord-avatar" src="" alt="Discord Avatar" class="w-14 h-14 rounded-full border border-white/20 object-cover">
+                        <div>
+                            <p class="text-[10px] text-zinc-400 uppercase tracking-wider font-medium">Discord Account</p>
+                            <h3 id="settings-discord-name" class="font-semibold text-sm text-white mt-0.5"></h3>
+                            <p id="settings-discord-username" class="text-xs text-zinc-400"></p>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-xs font-medium text-zinc-300 mb-1.5">Open Cloud API Key</label>
-                        <input type="password" id="input-apikey" placeholder="Masukkan API Key..." class="input-box w-full px-3.5 py-2.5 rounded-lg text-xs">
-                    </div>
-                    <button onclick="connectRoblox()" id="btn-connect" class="w-full py-2.5 rounded-lg bg-white text-black font-semibold text-xs hover:bg-zinc-200 transition tracking-wide">Connect Account</button>
+                    <button onclick="logoutDiscord()" class="px-4 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 font-medium text-xs border border-red-500/20 transition">Logout Discord</button>
                 </div>
-                <div id="profile-connected-container" class="hidden space-y-5 text-center py-2">
-                    <div class="flex flex-col items-center justify-center space-y-3">
-                        <img id="profile-avatar" src="" alt="Avatar" class="w-20 h-20 rounded-full border border-white/20 object-cover">
-                        <h3 id="profile-displayname" class="font-semibold text-sm text-white"></h3>
-                        <p id="profile-username" class="text-xs text-zinc-400"></p>
-                        <span class="inline-block px-2.5 py-1 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Connected</span>
+
+                <!-- ROBLOX SETTINGS CARD -->
+                <div class="glass-panel p-6 rounded-xl space-y-5">
+                    <div id="login-form-container" class="space-y-4">
+                        <h3 class="font-medium text-sm text-white">Hubungkan Akaun Roblox</h3>
+                        <div>
+                            <label class="block text-xs font-medium text-zinc-300 mb-1.5">Roblox User ID</label>
+                            <input type="text" id="input-userid" placeholder="Contoh: 123456789" class="input-box w-full px-3.5 py-2.5 rounded-lg text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-zinc-300 mb-1.5">Open Cloud API Key</label>
+                            <input type="password" id="input-apikey" placeholder="Masukkan API Key..." class="input-box w-full px-3.5 py-2.5 rounded-lg text-xs">
+                        </div>
+                        <button onclick="connectRoblox()" id="btn-connect" class="w-full py-2.5 rounded-lg bg-white text-black font-semibold text-xs hover:bg-zinc-200 transition tracking-wide">Connect Roblox Account</button>
                     </div>
-                    <button onclick="logoutRoblox()" class="px-4 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 font-medium text-xs border border-red-500/20 transition">Disconnect Account</button>
+                    <div id="profile-connected-container" class="hidden space-y-5 text-center py-2">
+                        <div class="flex flex-col items-center justify-center space-y-3">
+                            <img id="profile-avatar" src="" alt="Avatar" class="w-20 h-20 rounded-full border border-white/20 object-cover">
+                            <h3 id="profile-displayname" class="font-semibold text-sm text-white"></h3>
+                            <p id="profile-username" class="text-xs text-zinc-400"></p>
+                            <span class="inline-block px-2.5 py-1 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Roblox Connected</span>
+                        </div>
+                        <button onclick="logoutRoblox()" class="px-4 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 font-medium text-xs border border-red-500/20 transition">Disconnect Roblox</button>
+                    </div>
                 </div>
             </div>
         </section>
     </main>
     <script>
-        let currentUser = JSON.parse(localStorage.getItem('roblox_user')) || null;
+        let currentDiscordUser = JSON.parse(localStorage.getItem('discord_user')) || null;
+        let currentRobloxUser = JSON.parse(localStorage.getItem('roblox_user')) || null;
         let selectedAudioFiles = [];
         let activeAudioElement = null;
         let activePlayButton = null;
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const discordIdParam = urlParams.get('discordId');
+
+            if (discordIdParam) {
+                localStorage.setItem('discord_id', discordIdParam);
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+
+            const savedDiscordId = localStorage.getItem('discord_id') || (currentDiscordUser ? currentDiscordUser.id : null);
+
+            if (savedDiscordId) {
+                try {
+                    const res = await fetch(`/api/discord/user/${savedDiscordId}`);
+                    const data = await res.json();
+                    if (data.success) {
+                        currentDiscordUser = data.user;
+                        localStorage.setItem('discord_user', JSON.stringify(data.user));
+                        document.getElementById('discord-login-modal').classList.add('hidden');
+                        applyDiscordProfile(data.user);
+                    } else {
+                        localStorage.removeItem('discord_id');
+                        localStorage.removeItem('discord_user');
+                    }
+                } catch (e) {}
+            }
+
+            if (currentRobloxUser) {
+                applyRobloxState(currentRobloxUser);
+            }
+        });
+
+        function applyDiscordProfile(user) {
+            document.getElementById('sidebar-profile').classList.remove('hidden');
+            document.getElementById('sidebar-avatar').src = user.avatar;
+            document.getElementById('sidebar-display').textContent = user.globalName;
+            document.getElementById('sidebar-username').textContent = '@' + user.username;
+
+            document.getElementById('settings-discord-avatar').src = user.avatar;
+            document.getElementById('settings-discord-name').textContent = user.globalName;
+            document.getElementById('settings-discord-username').textContent = '@' + user.username;
+            loadHistory();
+        }
+
+        function logoutDiscord() {
+            localStorage.removeItem('discord_id');
+            localStorage.removeItem('discord_user');
+            localStorage.removeItem('roblox_user');
+            window.location.reload();
+        }
 
         function switchTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
@@ -169,26 +252,19 @@
             if(tabId === 'history') loadHistory();
         }
 
-        window.addEventListener('DOMContentLoaded', () => {
-            if (currentUser) applyConnectedState(currentUser);
-        });
-
-        function applyConnectedState(user) {
-            currentUser = user;
+        function applyRobloxState(user) {
+            currentRobloxUser = user;
             localStorage.setItem('roblox_user', JSON.stringify(user));
             document.getElementById('login-form-container').classList.add('hidden');
             document.getElementById('profile-connected-container').classList.remove('hidden');
             document.getElementById('profile-avatar').src = user.avatar;
             document.getElementById('profile-displayname').textContent = user.displayName;
             document.getElementById('profile-username').textContent = '@' + user.username;
-            document.getElementById('sidebar-profile').classList.remove('hidden');
-            document.getElementById('sidebar-avatar').src = user.avatar;
-            document.getElementById('sidebar-display').textContent = user.displayName;
-            document.getElementById('sidebar-username').textContent = '@' + user.username;
             loadHistory();
         }
 
         async function connectRoblox() {
+            if (!currentDiscordUser) { alert('Sila login Discord terlebih dahulu.'); return; }
             const userId = document.getElementById('input-userid').value.trim();
             const apiKey = document.getElementById('input-apikey').value.trim();
             if (!userId || !apiKey) { alert('Sila isi User ID dan API Key.'); return; }
@@ -198,27 +274,26 @@
                 const res = await fetch('/api/connect', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId, apiKey })
+                    body: JSON.stringify({ discordId: currentDiscordUser.id, userId, apiKey })
                 });
                 const data = await res.json();
                 if (data.success) {
-                    applyConnectedState(data.profile);
-                    alert('Akaun berjaya disambung.');
+                    applyRobloxState(data.profile);
+                    alert('Akaun Roblox berjaya disambung.');
                     switchTab('audio');
                 } else { alert('Gagal: ' + data.message); }
             } catch (err) { alert('Ralat rangkaian.'); }
-            finally { btn.textContent = 'Connect Account'; }
+            finally { btn.textContent = 'Connect Roblox Account'; }
         }
 
         function logoutRoblox() {
             localStorage.removeItem('roblox_user');
-            currentUser = null;
+            currentRobloxUser = null;
             document.getElementById('login-form-container').classList.remove('hidden');
             document.getElementById('profile-connected-container').classList.add('hidden');
-            document.getElementById('sidebar-profile').classList.add('hidden');
             document.getElementById('input-userid').value = '';
             document.getElementById('input-apikey').value = '';
-            alert('Berhasil disconnect.');
+            alert('Berhasil disconnect Roblox.');
         }
 
         document.getElementById('file-audio').addEventListener('change', (e) => {
@@ -246,7 +321,6 @@
             selectedAudioFiles.forEach((file, index) => {
                 const objectUrl = URL.createObjectURL(file);
                 const itemDiv = document.createElement('div');
-                // Tata letak vertikal: Nama file & durasi di atas, input custom judul di bawahnya persis
                 itemDiv.className = 'flex flex-col gap-2 p-3.5 rounded-lg bg-black/40 border border-white/10';
 
                 const audioObj = document.createElement('audio');
@@ -313,12 +387,14 @@
         }
 
         async function uploadAudio() {
-            if (!currentUser) { alert('Sila connect akaun terlebih dahulu.'); switchTab('settings'); return; }
+            if (!currentDiscordUser) { alert('Sila login Discord.'); return; }
+            if (!currentRobloxUser) { alert('Sila connect akaun Roblox terlebih dahulu di Setting.'); switchTab('settings'); return; }
             if (selectedAudioFiles.length === 0) { alert('Pilih fail audio.'); return; }
 
             const formData = new FormData();
-            formData.append('userId', currentUser.userId);
-            formData.append('apiKey', currentUser.apiKey || localStorage.getItem('roblox_apikey') || '');
+            formData.append('discordId', currentDiscordUser.id);
+            formData.append('userId', currentRobloxUser.userId);
+            formData.append('apiKey', currentRobloxUser.apiKey || localStorage.getItem('roblox_apikey') || '');
 
             const titleInputs = document.querySelectorAll('.audio-custom-title');
             titleInputs.forEach((input, index) => {
@@ -379,14 +455,15 @@
         }
 
         async function uploadImage() {
-            if (!currentUser) { alert('Sila connect akaun terlebih dahulu.'); switchTab('settings'); return; }
+            if (!currentDiscordUser || !currentRobloxUser) { alert('Sila login Discord dan connect Roblox.'); switchTab('settings'); return; }
             const filesInput = document.getElementById('file-image');
             const assetName = document.getElementById('image-name').value;
             if (filesInput.files.length === 0) { alert('Pilih fail gambar.'); return; }
 
             const formData = new FormData();
-            formData.append('userId', currentUser.userId);
-            formData.append('apiKey', currentUser.apiKey || localStorage.getItem('roblox_apikey') || '');
+            formData.append('discordId', currentDiscordUser.id);
+            formData.append('userId', currentRobloxUser.userId);
+            formData.append('apiKey', currentRobloxUser.apiKey || localStorage.getItem('roblox_apikey') || '');
             formData.append('assetName', assetName);
             for (let file of filesInput.files) formData.append('images', file);
 
@@ -406,9 +483,9 @@
         }
 
         async function loadHistory() {
-            if (!currentUser) return;
+            if (!currentDiscordUser) return;
             try {
-                const res = await fetch(`/api/history/${currentUser.userId}`);
+                const res = await fetch(`/api/history/${currentDiscordUser.id}`);
                 const data = await res.json();
                 if (data.success) {
                     document.getElementById('stat-limit').textContent = data.remainingLimit + ' / 10';

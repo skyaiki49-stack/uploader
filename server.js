@@ -16,31 +16,38 @@ const upload = multer({ dest: 'uploads/' });
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 const DB_FILE = path.join(DATA_DIR, 'database.json');
 
+const CLIENT_ID = process.env.DISCORD_CLIENT_ID || '';
+const CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || '';
+const REDIRECT_URI = process.env.DISCORD_REDIRECT_URI || '';
+
 function readDB() {
     if (!fs.existsSync(DB_FILE)) {
-        const initial = { users: {}, history: [], limits: {} };
+        const initial = { users: {}, discordUsers: {}, history: [], limits: {} };
         fs.writeFileSync(DB_FILE, JSON.stringify(initial, null, 2));
     }
-    return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    if (!data.discordUsers) data.discordUsers = {};
+    return data;
 }
 
 function writeDB(data) {
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
 }
 
-function checkAndUseLimit(userId) {
+// Limit harian mendeteksi dari ID Discord
+function checkAndUseLimit(discordId) {
     let db = readDB();
     const now = Date.now();
     const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
-    if (!db.limits[userId]) {
-        db.limits[userId] = { count: 0, resetTime: now + TWENTY_FOUR_HOURS };
+    if (!db.limits[discordId]) {
+        db.limits[discordId] = { count: 0, resetTime: now + TWENTY_FOUR_HOURS };
     }
-    if (now > db.limits[userId].resetTime) {
-        db.limits[userId].count = 0;
-        db.limits[userId].resetTime = now + TWENTY_FOUR_HOURS;
+    if (now > db.limits[discordId].resetTime) {
+        db.limits[discordId].count = 0;
+        db.limits[discordId].resetTime = now + TWENTY_FOUR_HOURS;
     }
     writeDB(db);
-    return db.limits[userId];
+    return db.limits[discordId];
 }
 
 async function pollOperationStatus(operationPath, apiKey) {
@@ -66,9 +73,73 @@ async function pollOperationStatus(operationPath, apiKey) {
     return { success: false, message: 'Timeout menunggu proses Roblox' };
 }
 
+// Endpoint Discord OAuth2 Redirect
+app.get('/auth/discord', (req, res) => {
+    if (!CLIENT_ID || !REDIRECT_URI) {
+        return res.status(500).send('Konfigurasi Discord Client ID / Redirect URI belum diatur di Environment Variables Railway.');
+    }
+    const discordAuthUrl = `https://discord.com/api/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=identify`;
+    res.redirect(discordAuthUrl);
+});
+
+app.get('/auth/discord/callback', async (req, res) => {
+    const code = req.query.code;
+    if (!code) return res.redirect('/?error=nodiscordcode');
+
+    try {
+        const tokenRes = await fetch('https://discord.com/api/oauth2/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                client_id: CLIENT_ID,
+                client_secret: CLIENT_SECRET,
+                grant_type: 'authorization_code',
+                code: code,
+                redirect_uri: REDIRECT_URI,
+            })
+        });
+        const tokenData = await tokenRes.json();
+        if (!tokenData.access_token) return res.redirect('/?error=discordtokenfailed');
+
+        const userRes = await fetch('https://discord.com/api/users/@me', {
+            headers: { Authorization: `Bearer ${tokenData.access_token}` }
+        });
+        const userData = await userRes.json();
+        const avatarUrl = userData.avatar 
+            ? `https://cdn.discordapp.com/avatars/${userData.id}/${userData.avatar}.png` 
+            : 'https://cdn.discordapp.com/embed/avatars/0.png';
+
+        let db = readDB();
+        db.discordUsers[userData.id] = {
+            id: userData.id,
+            username: userData.username,
+            globalName: userData.global_name || userData.username,
+            avatar: avatarUrl
+        };
+        writeDB(db);
+
+        // Redirect kembali ke web dengan membawa parameter discordId agar tersimpan permanen di browser
+        res.redirect(`/?discordId=${userData.id}`);
+    } catch (err) {
+        res.redirect('/?error=discordservererror');
+    }
+});
+
+// API Cek/Ambil Data Discord User
+app.get('/api/discord/user/:discordId', (req, res) => {
+    const { discordId } = req.params;
+    let db = readDB();
+    const user = db.discordUsers[discordId];
+    if (user) {
+        res.json({ success: true, user });
+    } else {
+        res.json({ success: false });
+    }
+});
+
 app.post('/api/connect', async (req, res) => {
-    const { userId, apiKey } = req.body;
-    if (!userId || !apiKey) return res.status(400).json({ success: false, message: 'User ID dan API Key wajib diisi.' });
+    const { discordId, userId, apiKey } = req.body;
+    if (!discordId || !userId || !apiKey) return res.status(400).json({ success: false, message: 'Data tidak lengkap.' });
     try {
         const userRes = await fetch(`https://users.roblox.com/v1/users/${userId}`);
         if (!userRes.ok) return res.status(400).json({ success: false, message: 'User ID Roblox tidak ditemui.' });
@@ -78,7 +149,7 @@ app.post('/api/connect', async (req, res) => {
         const avatarUrl = thumbData.data && thumbData.data.length > 0 ? thumbData.data[0].imageUrl : 'https://tr.rbxcdn.com/3941443493e947d5ce177894f6f7093b/150/150/Image/Png';
 
         let db = readDB();
-        db.users[userId] = { userId, apiKey, username: userData.name, displayName: userData.displayName, avatar: avatarUrl };
+        db.users[discordId] = { discordId, userId, apiKey, username: userData.name, displayName: userData.displayName, avatar: avatarUrl };
         writeDB(db);
         res.json({ success: true, profile: { userId, username: userData.name, displayName: userData.displayName, avatar: avatarUrl } });
     } catch (error) {
@@ -86,44 +157,31 @@ app.post('/api/connect', async (req, res) => {
     }
 });
 
-app.get('/api/limit/:userId', (req, res) => {
-    const { userId } = req.params;
-    const limitInfo = checkAndUseLimit(userId);
-    const remaining = Math.max(0, 10 - limitInfo.count);
-    res.json({ success: true, remaining, totalUsed: limitInfo.count });
+app.get('/api/history/:discordId', (req, res) => {
+    const { discordId } = req.params;
+    let db = readDB();
+    const userHistory = db.history.filter(h => h.discordId === discordId);
+    const limitInfo = checkAndUseLimit(discordId);
+    res.json({ success: true, history: userHistory, totalUpload: userHistory.length, remainingLimit: Math.max(0, 10 - limitInfo.count) });
 });
 
-async function getOrRestoreUser(userId, apiKey, db) {
-    if (db.users[userId]) return db.users[userId];
-    if (apiKey) {
-        try {
-            const userRes = await fetch(`https://users.roblox.com/v1/users/${userId}`);
-            if (userRes.ok) {
-                const userData = await userRes.json();
-                const newUser = { userId, apiKey, username: userData.name, displayName: userData.displayName, avatar: '' };
-                db.users[userId] = newUser;
-                writeDB(db);
-                return newUser;
-            }
-        } catch (e) {}
-    }
-    return null;
-}
-
 app.post('/api/upload-audio', upload.array('audios', 20), async (req, res) => {
-    const { userId, apiKey } = req.body;
+    const { discordId, userId, apiKey } = req.body;
     const files = req.files;
     let customNames = req.body.customNames;
-    if (!userId || !files || files.length === 0) return res.status(400).json({ success: false, message: 'Fail audio tidak lengkap.' });
+    if (!discordId || !userId || !files || files.length === 0) return res.status(400).json({ success: false, message: 'Fail atau sesi tidak lengkap.' });
     if (typeof customNames === 'string') customNames = [customNames];
 
     let db = readDB();
-    let user = await getOrRestoreUser(userId, apiKey, db);
-    if (!user) {
-        return res.status(401).json({ success: false, message: 'Akaun belum tersambung atau API Key hilang. Sila sambung semula di Setting.' });
+    let robloxUser = db.users[discordId];
+    if (!robloxUser && apiKey) {
+        robloxUser = { discordId, userId, apiKey };
+        db.users[discordId] = robloxUser;
+        writeDB(db);
     }
+    if (!robloxUser) return res.status(401).json({ success: false, message: 'Akaun Roblox belum tersambung.' });
 
-    const limitInfo = checkAndUseLimit(userId);
+    const limitInfo = checkAndUseLimit(discordId);
     if (limitInfo.count + files.length > 10) return res.status(400).json({ success: false, message: `Had harian terlampaui. Baki had: ${10 - limitInfo.count}` });
 
     let results = [];
@@ -144,17 +202,17 @@ app.post('/api/upload-audio', upload.array('audios', 20), async (req, res) => {
 
             const response = await fetch('https://apis.roblox.com/assets/v1/assets', {
                 method: 'POST',
-                headers: { 'x-api-key': user.apiKey, ...formData.getHeaders() },
+                headers: { 'x-api-key': robloxUser.apiKey, ...formData.getHeaders() },
                 body: formData
             });
             const responseData = await response.json();
             fs.unlinkSync(file.path);
 
             if (response.ok && responseData.path) {
-                const pollResult = await pollOperationStatus(responseData.path, user.apiKey);
+                const pollResult = await pollOperationStatus(responseData.path, robloxUser.apiKey);
                 if (pollResult.success) {
                     results.push({ name: displayName, type: 'Audio', assetId: pollResult.assetId, status: 'Success', time: new Date().toLocaleString() });
-                    db.limits[userId].count += 1;
+                    db.limits[discordId].count += 1;
                 } else {
                     results.push({ name: displayName, type: 'Audio', assetId: 'Gagal', status: pollResult.message, time: new Date().toLocaleString() });
                 }
@@ -166,25 +224,28 @@ app.post('/api/upload-audio', upload.array('audios', 20), async (req, res) => {
             results.push({ name: displayName, type: 'Audio', assetId: 'Gagal', status: err.message, time: new Date().toLocaleString() });
         }
     }
-    db.history.unshift(...results.map(r => ({ ...r, userId })));
+    db.history.unshift(...results.map(r => ({ ...r, discordId })));
     writeDB(db);
-    res.json({ success: true, results, remainingLimit: 10 - db.limits[userId].count });
+    res.json({ success: true, results, remainingLimit: 10 - db.limits[discordId].count });
 });
 
 app.post('/api/upload-image', upload.array('images', 10), async (req, res) => {
-    const { userId, apiKey } = req.body;
+    const { discordId, userId, apiKey } = req.body;
     const files = req.files;
     let customNames = req.body.customNames;
-    if (!userId || !files || files.length === 0) return res.status(400).json({ success: false, message: 'Fail gambar tidak lengkap.' });
+    if (!discordId || !userId || !files || files.length === 0) return res.status(400).json({ success: false, message: 'Fail atau sesi tidak lengkap.' });
     if (typeof customNames === 'string') customNames = [customNames];
 
     let db = readDB();
-    let user = await getOrRestoreUser(userId, apiKey, db);
-    if (!user) {
-        return res.status(401).json({ success: false, message: 'Akaun belum tersambung atau API Key hilang.' });
+    let robloxUser = db.users[discordId];
+    if (!robloxUser && apiKey) {
+        robloxUser = { discordId, userId, apiKey };
+        db.users[discordId] = robloxUser;
+        writeDB(db);
     }
+    if (!robloxUser) return res.status(401).json({ success: false, message: 'Akaun Roblox belum tersambung.' });
 
-    const limitInfo = checkAndUseLimit(userId);
+    const limitInfo = checkAndUseLimit(discordId);
     if (limitInfo.count + files.length > 10) return res.status(400).json({ success: false, message: `Had harian terlampaui. Baki had: ${10 - limitInfo.count}` });
 
     let results = [];
@@ -206,17 +267,17 @@ app.post('/api/upload-image', upload.array('images', 10), async (req, res) => {
 
             const response = await fetch('https://apis.roblox.com/assets/v1/assets', {
                 method: 'POST',
-                headers: { 'x-api-key': user.apiKey, ...formData.getHeaders() },
+                headers: { 'x-api-key': robloxUser.apiKey, ...formData.getHeaders() },
                 body: formData
             });
             const responseData = await response.json();
             fs.unlinkSync(file.path);
 
             if (response.ok && responseData.path) {
-                const pollResult = await pollOperationStatus(responseData.path, user.apiKey);
+                const pollResult = await pollOperationStatus(responseData.path, robloxUser.apiKey);
                 if (pollResult.success) {
                     results.push({ name: fileNameJpg, type: 'Image', assetId: pollResult.assetId, status: 'Success', time: new Date().toLocaleString() });
-                    db.limits[userId].count += 1;
+                    db.limits[discordId].count += 1;
                 } else {
                     results.push({ name: fileNameJpg, type: 'Image', assetId: 'Gagal', status: pollResult.message, time: new Date().toLocaleString() });
                 }
@@ -228,17 +289,9 @@ app.post('/api/upload-image', upload.array('images', 10), async (req, res) => {
             results.push({ name: fileNameJpg, type: 'Image', assetId: 'Gagal', status: err.message, time: new Date().toLocaleString() });
         }
     }
-    db.history.unshift(...results.map(r => ({ ...r, userId })));
+    db.history.unshift(...results.map(r => ({ ...r, discordId })));
     writeDB(db);
-    res.json({ success: true, results, remainingLimit: 10 - db.limits[userId].count });
-});
-
-app.get('/api/history/:userId', (req, res) => {
-    const { userId } = req.params;
-    let db = readDB();
-    const userHistory = db.history.filter(h => h.userId === userId);
-    const limitInfo = checkAndUseLimit(userId);
-    res.json({ success: true, history: userHistory, totalUpload: userHistory.length, remainingLimit: Math.max(0, 10 - limitInfo.count) });
+    res.json({ success: true, results, remainingLimit: 10 - db.limits[discordId].count });
 });
 
 app.listen(PORT, () => { console.log(`Server berjalan di port ${PORT}`); });
