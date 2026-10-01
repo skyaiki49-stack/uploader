@@ -93,19 +93,21 @@ app.get('/api/limit/:userId', (req, res) => {
     res.json({ success: true, remaining, totalUsed: limitInfo.count });
 });
 
-async function getOrRestoreUser(userId, db) {
+async function getOrRestoreUser(userId, apiKey, db) {
     if (db.users[userId]) return db.users[userId];
-    try {
-        const userRes = await fetch(`https://users.roblox.com/v1/users/${userId}`);
-        if (!userRes.ok) return null;
-        const userData = await userRes.json();
-        const thumbRes = await fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=150x150&format=Png&isCircular=false`);
-        const thumbData = await thumbRes.json();
-        const avatarUrl = thumbData.data && thumbData.data.length > 0 ? thumbData.data[0].imageUrl : '';
-        return { userId, username: userData.name, displayName: userData.displayName, avatar: avatarUrl };
-    } catch (e) {
-        return null;
+    if (apiKey) {
+        try {
+            const userRes = await fetch(`https://users.roblox.com/v1/users/${userId}`);
+            if (userRes.ok) {
+                const userData = await userRes.json();
+                const newUser = { userId, apiKey, username: userData.name, displayName: userData.displayName, avatar: '' };
+                db.users[userId] = newUser;
+                writeDB(db);
+                return newUser;
+            }
+        } catch (e) {}
     }
+    return null;
 }
 
 app.post('/api/upload-audio', upload.array('audios', 20), async (req, res) => {
@@ -116,16 +118,9 @@ app.post('/api/upload-audio', upload.array('audios', 20), async (req, res) => {
     if (typeof customNames === 'string') customNames = [customNames];
 
     let db = readDB();
-    let user = db.users[userId];
+    let user = await getOrRestoreUser(userId, apiKey, db);
     if (!user) {
-        const restored = await getOrRestoreUser(userId, db);
-        if (restored && apiKey) {
-            user = { ...restored, apiKey };
-            db.users[userId] = user;
-            writeDB(db);
-        } else {
-            return res.status(401).json({ success: false, message: 'Akaun belum tersambung atau API Key hilang.' });
-        }
+        return res.status(401).json({ success: false, message: 'Akaun belum tersambung atau API Key hilang. Sila sambung semula di Setting.' });
     }
 
     const limitInfo = checkAndUseLimit(userId);
@@ -142,6 +137,7 @@ app.post('/api/upload-audio', upload.array('audios', 20), async (req, res) => {
             formData.append('request', JSON.stringify({
                 assetType: "Audio",
                 displayName: displayName,
+                description: "MCHLERN UPLOADER",
                 creationContext: { creator: { userId: Number(userId) } }
             }));
             formData.append('fileContent', fileStream, { filename: file.originalname, knownLength: stats.size });
@@ -183,16 +179,9 @@ app.post('/api/upload-image', upload.array('images', 10), async (req, res) => {
     if (typeof customNames === 'string') customNames = [customNames];
 
     let db = readDB();
-    let user = db.users[userId];
+    let user = await getOrRestoreUser(userId, apiKey, db);
     if (!user) {
-        const restored = await getOrRestoreUser(userId, db);
-        if (restored && apiKey) {
-            user = { ...restored, apiKey };
-            db.users[userId] = user;
-            writeDB(db);
-        } else {
-            return res.status(401).json({ success: false, message: 'Akaun belum tersambung atau API Key hilang.' });
-        }
+        return res.status(401).json({ success: false, message: 'Akaun belum tersambung atau API Key hilang.' });
     }
 
     const limitInfo = checkAndUseLimit(userId);
@@ -210,6 +199,7 @@ app.post('/api/upload-image', upload.array('images', 10), async (req, res) => {
             formData.append('request', JSON.stringify({
                 assetType: "Decal",
                 displayName: fileNameJpg,
+                description: "MCHLERN UPLOADER",
                 creationContext: { creator: { userId: Number(userId) } }
             }));
             formData.append('fileContent', fileStream, { filename: fileNameJpg, knownLength: stats.size });
