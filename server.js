@@ -27,6 +27,7 @@ function readDB() {
     }
     const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
     if (!data.discordUsers) data.discordUsers = {};
+    if (!data.limits) data.limits = {};
     return data;
 }
 
@@ -34,7 +35,6 @@ function writeDB(data) {
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
 }
 
-// Limit harian mendeteksi dari ID Discord
 function checkAndUseLimit(discordId) {
     let db = readDB();
     const now = Date.now();
@@ -73,10 +73,9 @@ async function pollOperationStatus(operationPath, apiKey) {
     return { success: false, message: 'Timeout menunggu proses Roblox' };
 }
 
-// Endpoint Discord OAuth2 Redirect
 app.get('/auth/discord', (req, res) => {
     if (!CLIENT_ID || !REDIRECT_URI) {
-        return res.status(500).send('Konfigurasi Discord Client ID / Redirect URI belum diatur di Environment Variables Railway.');
+        return res.status(500).send('Konfigurasi Discord Client ID / Redirect URI belum diatur.');
     }
     const discordAuthUrl = `https://discord.com/api/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=identify`;
     res.redirect(discordAuthUrl);
@@ -118,14 +117,12 @@ app.get('/auth/discord/callback', async (req, res) => {
         };
         writeDB(db);
 
-        // Redirect kembali ke web dengan membawa parameter discordId agar tersimpan permanen di browser
         res.redirect(`/?discordId=${userData.id}`);
     } catch (err) {
         res.redirect('/?error=discordservererror');
     }
 });
 
-// API Cek/Ambil Data Discord User
 app.get('/api/discord/user/:discordId', (req, res) => {
     const { discordId } = req.params;
     let db = readDB();
@@ -212,6 +209,7 @@ app.post('/api/upload-audio', upload.array('audios', 20), async (req, res) => {
                 const pollResult = await pollOperationStatus(responseData.path, robloxUser.apiKey);
                 if (pollResult.success) {
                     results.push({ name: displayName, type: 'Audio', assetId: pollResult.assetId, status: 'Success', time: new Date().toLocaleString() });
+                    // MENAMBAHKAN COUNTER LIMIT HARIAN SETIAP BERHASIL UPLOAD AUDIO
                     db.limits[discordId].count += 1;
                 } else {
                     results.push({ name: displayName, type: 'Audio', assetId: 'Gagal', status: pollResult.message, time: new Date().toLocaleString() });
@@ -226,7 +224,7 @@ app.post('/api/upload-audio', upload.array('audios', 20), async (req, res) => {
     }
     db.history.unshift(...results.map(r => ({ ...r, discordId })));
     writeDB(db);
-    res.json({ success: true, results, remainingLimit: 10 - db.limits[discordId].count });
+    res.json({ success: true, results, remainingLimit: Math.max(0, 10 - db.limits[discordId].count) });
 });
 
 app.post('/api/upload-image', upload.array('images', 10), async (req, res) => {
@@ -277,6 +275,7 @@ app.post('/api/upload-image', upload.array('images', 10), async (req, res) => {
                 const pollResult = await pollOperationStatus(responseData.path, robloxUser.apiKey);
                 if (pollResult.success) {
                     results.push({ name: fileNameJpg, type: 'Image', assetId: pollResult.assetId, status: 'Success', time: new Date().toLocaleString() });
+                    // MENAMBAHKAN COUNTER LIMIT HARIAN SETIAP BERHASIL UPLOAD GAMBAR
                     db.limits[discordId].count += 1;
                 } else {
                     results.push({ name: fileNameJpg, type: 'Image', assetId: 'Gagal', status: pollResult.message, time: new Date().toLocaleString() });
@@ -291,7 +290,7 @@ app.post('/api/upload-image', upload.array('images', 10), async (req, res) => {
     }
     db.history.unshift(...results.map(r => ({ ...r, discordId })));
     writeDB(db);
-    res.json({ success: true, results, remainingLimit: 10 - db.limits[discordId].count });
+    res.json({ success: true, results, remainingLimit: Math.max(0, 10 - db.limits[discordId].count) });
 });
 
 app.listen(PORT, () => { console.log(`Server berjalan di port ${PORT}`); });
