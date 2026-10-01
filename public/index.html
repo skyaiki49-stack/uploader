@@ -184,8 +184,8 @@
         </section>
     </main>
     <script>
-        let currentDiscordUser = JSON.parse(localStorage.getItem('discord_user')) || null;
-        let currentRobloxUser = JSON.parse(localStorage.getItem('roblox_user')) || null;
+        let currentDiscordUser = null;
+        let currentRobloxUser = null;
         let selectedAudioFiles = [];
         let activeAudioElement = null;
         let activePlayButton = null;
@@ -199,7 +199,7 @@
                 window.history.replaceState({}, document.title, window.location.pathname);
             }
 
-            const savedDiscordId = localStorage.getItem('discord_id') || (currentDiscordUser ? currentDiscordUser.id : null);
+            const savedDiscordId = localStorage.getItem('discord_id');
 
             if (savedDiscordId) {
                 try {
@@ -207,12 +207,15 @@
                     const data = await res.json();
                     if (data.success) {
                         currentDiscordUser = data.user;
-                        localStorage.setItem('discord_user', JSON.stringify(data.user));
                         document.getElementById('discord-login-modal').classList.add('hidden');
                         applyDiscordProfile(data.user);
+
+                        // Muat profil Roblox yang tersimpan di server secara persisten
+                        if (data.robloxUser) {
+                            applyRobloxState(data.robloxUser);
+                        }
                     } else {
                         localStorage.removeItem('discord_id');
-                        localStorage.removeItem('discord_user');
                         document.getElementById('discord-login-modal').classList.remove('hidden');
                     }
                 } catch (e) {
@@ -220,10 +223,6 @@
                 }
             } else {
                 document.getElementById('discord-login-modal').classList.remove('hidden');
-            }
-
-            if (currentRobloxUser) {
-                applyRobloxState(currentRobloxUser);
             }
         });
 
@@ -241,8 +240,6 @@
 
         function logoutDiscord() {
             localStorage.removeItem('discord_id');
-            localStorage.removeItem('discord_user');
-            localStorage.removeItem('roblox_user');
             window.location.reload();
         }
 
@@ -256,7 +253,6 @@
 
         function applyRobloxState(user) {
             currentRobloxUser = user;
-            localStorage.setItem('roblox_user', JSON.stringify(user));
             document.getElementById('login-form-container').classList.add('hidden');
             document.getElementById('profile-connected-container').classList.remove('hidden');
             document.getElementById('profile-avatar').src = user.avatar;
@@ -281,7 +277,7 @@
                 const data = await res.json();
                 if (data.success) {
                     applyRobloxState(data.profile);
-                    alert('Akaun Roblox berjaya disambung.');
+                    alert('Akaun Roblox berjaya disambung dan disimpan secara kekal.');
                     switchTab('audio');
                 } else { alert('Gagal: ' + data.message); }
             } catch (err) { alert('Ralat rangkaian.'); }
@@ -289,7 +285,6 @@
         }
 
         function logoutRoblox() {
-            localStorage.removeItem('roblox_user');
             currentRobloxUser = null;
             document.getElementById('login-form-container').classList.remove('hidden');
             document.getElementById('profile-connected-container').classList.add('hidden');
@@ -396,7 +391,7 @@
             const formData = new FormData();
             formData.append('discordId', currentDiscordUser.id);
             formData.append('userId', currentRobloxUser.userId);
-            formData.append('apiKey', currentRobloxUser.apiKey || localStorage.getItem('roblox_apikey') || '');
+            formData.append('apiKey', currentRobloxUser.apiKey);
 
             const titleInputs = document.querySelectorAll('.audio-custom-title');
             titleInputs.forEach((input, index) => {
@@ -436,7 +431,6 @@
                     progressPercentage.textContent = '100%';
                     statusText.textContent = 'Upload berjaya sepenuhnya!';
                     
-                    // MEMPERBARUI LIMIT & HISTORY SECARA REAL-TIME SEGERA SETELAH UPLOAD SUKSES
                     loadHistory();
 
                     alert('Upload audio berjaya dan siap diproses ke Roblox!');
@@ -468,7 +462,7 @@
             const formData = new FormData();
             formData.append('discordId', currentDiscordUser.id);
             formData.append('userId', currentRobloxUser.userId);
-            formData.append('apiKey', currentRobloxUser.apiKey || localStorage.getItem('roblox_apikey') || '');
+            formData.append('apiKey', currentRobloxUser.apiKey);
             formData.append('assetName', assetName);
             for (let file of filesInput.files) formData.append('images', file);
 
@@ -477,9 +471,7 @@
                 const res = await fetch('/api/upload-image', { method: 'POST', body: formData });
                 const data = await res.json();
                 if (data.success) {
-                    // MEMPERBARUI LIMIT & HISTORY SECARA REAL-TIME SEGERA SETELAH UPLOAD GAMBAR SUKSES
                     loadHistory();
-
                     alert('Upload gambar berjaya!');
                     filesInput.value = '';
                     document.getElementById('image-name').value = '';

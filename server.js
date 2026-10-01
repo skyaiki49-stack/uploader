@@ -25,10 +25,16 @@ function readDB() {
         const initial = { users: {}, discordUsers: {}, history: [], limits: {} };
         fs.writeFileSync(DB_FILE, JSON.stringify(initial, null, 2));
     }
-    const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-    if (!data.discordUsers) data.discordUsers = {};
-    if (!data.limits) data.limits = {};
-    return data;
+    try {
+        const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+        if (!data.users) data.users = {};
+        if (!data.discordUsers) data.discordUsers = {};
+        if (!data.limits) data.limits = {};
+        if (!data.history) data.history = [];
+        return data;
+    } catch (e) {
+        return { users: {}, discordUsers: {}, history: [], limits: {} };
+    }
 }
 
 function writeDB(data) {
@@ -50,10 +56,9 @@ function checkAndUseLimit(discordId) {
     return db.limits[discordId];
 }
 
-// Memperpanjang waktu tunggu (polling) agar tidak cepat timeout
 async function pollOperationStatus(operationPath, apiKey) {
-    const maxRetries = 30; // Dinaikkan menjadi 30 kali percobaan (total waktu tunggu lebih lama)
-    const delayMs = 4000;  // Jeda 4 detik per pengecekan
+    const maxRetries = 30;
+    const delayMs = 4000;
     for (let i = 0; i < maxRetries; i++) {
         try {
             await new Promise(resolve => setTimeout(resolve, delayMs));
@@ -129,7 +134,9 @@ app.get('/api/discord/user/:discordId', (req, res) => {
     let db = readDB();
     const user = db.discordUsers[discordId];
     if (user) {
-        res.json({ success: true, user });
+        // Kirim juga data koneksi Roblox yang tersimpan di server jika ada
+        const robloxUser = db.users[discordId] || null;
+        res.json({ success: true, user, robloxUser });
     } else {
         res.json({ success: false });
     }
@@ -147,9 +154,10 @@ app.post('/api/connect', async (req, res) => {
         const avatarUrl = thumbData.data && thumbData.data.length > 0 ? thumbData.data[0].imageUrl : 'https://tr.rbxcdn.com/3941443493e947d5ce177894f6f7093b/150/150/Image/Png';
 
         let db = readDB();
-        db.users[discordId] = { discordId, userId, apiKey, username: userData.name, displayName: userData.displayName, avatar: avatarUrl };
+        const profile = { discordId, userId, apiKey, username: userData.name, displayName: userData.displayName, avatar: avatarUrl };
+        db.users[discordId] = profile;
         writeDB(db);
-        res.json({ success: true, profile: { userId, username: userData.name, displayName: userData.displayName, avatar: avatarUrl } });
+        res.json({ success: true, profile });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Gagal menyambungkan ke akaun Roblox.' });
     }
@@ -173,7 +181,7 @@ app.post('/api/upload-audio', upload.array('audios', 20), async (req, res) => {
     let db = readDB();
     let robloxUser = db.users[discordId];
     if (!robloxUser && apiKey) {
-        robloxUser = { discordId, userId, apiKey };
+        robloxUser = { discordId, userId, apiKey, username: 'User', displayName: 'User', avatar: '' };
         db.users[discordId] = robloxUser;
         writeDB(db);
     }
@@ -239,7 +247,7 @@ app.post('/api/upload-image', upload.array('images', 10), async (req, res) => {
     let db = readDB();
     let robloxUser = db.users[discordId];
     if (!robloxUser && apiKey) {
-        robloxUser = { discordId, userId, apiKey };
+        robloxUser = { discordId, userId, apiKey, username: 'User', displayName: 'User', avatar: '' };
         db.users[discordId] = robloxUser;
         writeDB(db);
     }
