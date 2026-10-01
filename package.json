@@ -1,0 +1,14 @@
+{
+  "name": "roblox-uploader-app",
+  "version": "1.0.0",
+  "description": "Roblox Audio and Image Uploader",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "dependencies": {
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1",
+    "node-fetch": "^2.7.0",
+    "form-data": "^4.0.0"
+  },
+  "engines": { "node": ">=18.x" }
+}
