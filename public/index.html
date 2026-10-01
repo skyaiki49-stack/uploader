@@ -14,8 +14,7 @@
     </style>
 </head>
 <body class="min-h-screen flex flex-col md:flex-row antialiased selection:bg-white selection:text-black">
-    <!-- DISCORD LOGIN OVERLAY (MANDATORY) -->
-    <div id="discord-login-modal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-6">
+    <div id="discord-login-modal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-6 hidden">
         <div class="glass-panel p-8 rounded-2xl max-w-md w-full text-center space-y-6 border border-white/10 shadow-2xl">
             <div class="w-16 h-16 bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 rounded-2xl mx-auto flex items-center justify-center text-2xl font-bold">💎</div>
             <div>
@@ -146,7 +145,6 @@
                 <p class="text-xs text-zinc-400 mt-0.5">Konfigurasi akaun Discord & Roblox.</p>
             </div>
             <div class="space-y-5">
-                <!-- DISCORD PROFILE CARD -->
                 <div class="glass-panel p-6 rounded-xl flex items-center justify-between">
                     <div class="flex items-center gap-4">
                         <img id="settings-discord-avatar" src="" alt="Discord Avatar" class="w-14 h-14 rounded-full border border-white/20 object-cover">
@@ -159,7 +157,6 @@
                     <button onclick="logoutDiscord()" class="px-4 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 font-medium text-xs border border-red-500/20 transition">Logout Discord</button>
                 </div>
 
-                <!-- ROBLOX SETTINGS CARD -->
                 <div class="glass-panel p-6 rounded-xl space-y-5">
                     <div id="login-form-container" class="space-y-4">
                         <h3 class="font-medium text-sm text-white">Hubungkan Akaun Roblox</h3>
@@ -216,8 +213,13 @@
                     } else {
                         localStorage.removeItem('discord_id');
                         localStorage.removeItem('discord_user');
+                        document.getElementById('discord-login-modal').classList.remove('hidden');
                     }
-                } catch (e) {}
+                } catch (e) {
+                    document.getElementById('discord-login-modal').classList.remove('hidden');
+                }
+            } else {
+                document.getElementById('discord-login-modal').classList.remove('hidden');
             }
 
             if (currentRobloxUser) {
@@ -433,6 +435,10 @@
                     progressBarFill.style.width = '100%';
                     progressPercentage.textContent = '100%';
                     statusText.textContent = 'Upload berjaya sepenuhnya!';
+                    
+                    // MEMPERBARUI LIMIT & HISTORY SECARA REAL-TIME SEGERA SETELAH UPLOAD SUKSES
+                    loadHistory();
+
                     alert('Upload audio berjaya dan siap diproses ke Roblox!');
                     
                     setTimeout(() => {
@@ -440,7 +446,6 @@
                         document.getElementById('file-audio').value = '';
                         document.getElementById('audio-preview-container').classList.add('hidden');
                         selectedAudioFiles = [];
-                        loadHistory();
                     }, 1200);
                 } else {
                     alert('Gagal: ' + data.message);
@@ -472,11 +477,13 @@
                 const res = await fetch('/api/upload-image', { method: 'POST', body: formData });
                 const data = await res.json();
                 if (data.success) {
+                    // MEMPERBARUI LIMIT & HISTORY SECARA REAL-TIME SEGERA SETELAH UPLOAD GAMBAR SUKSES
+                    loadHistory();
+
                     alert('Upload gambar berjaya!');
                     filesInput.value = '';
                     document.getElementById('image-name').value = '';
                     document.getElementById('image-file-list').innerHTML = '';
-                    loadHistory();
                 } else { alert('Gagal: ' + data.message); }
             } catch (err) { alert('Ralat semasa upload.'); }
             finally { document.getElementById('image-loading').classList.add('hidden'); }
