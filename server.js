@@ -50,9 +50,10 @@ function checkAndUseLimit(discordId) {
     return db.limits[discordId];
 }
 
+// Memperpanjang waktu tunggu (polling) agar tidak cepat timeout
 async function pollOperationStatus(operationPath, apiKey) {
-    const maxRetries = 15;
-    const delayMs = 3000;
+    const maxRetries = 30; // Dinaikkan menjadi 30 kali percobaan (total waktu tunggu lebih lama)
+    const delayMs = 4000;  // Jeda 4 detik per pengecekan
     for (let i = 0; i < maxRetries; i++) {
         try {
             await new Promise(resolve => setTimeout(resolve, delayMs));
@@ -186,7 +187,6 @@ app.post('/api/upload-audio', upload.array('audios', 20), async (req, res) => {
         const file = files[i];
         const displayName = (customNames && customNames[i]) ? customNames[i] : file.originalname;
         
-        // Langsung tambahkan hitungan limit terpakai saat file mulai diproses upload
         db.limits[discordId].count += 1;
 
         try {
@@ -254,7 +254,6 @@ app.post('/api/upload-image', upload.array('images', 10), async (req, res) => {
         const baseName = (customNames && customNames[i]) ? customNames[i] : file.originalname.substring(0, file.originalname.lastIndexOf('.')) || file.originalname;
         const fileNameJpg = baseName + '.jpg';
         
-        // Langsung tambahkan hitungan limit terpakai saat gambar mulai diproses upload
         db.limits[discordId].count += 1;
 
         try {
