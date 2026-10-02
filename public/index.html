@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roblox Asset Uploader Panel</title>
+    <title>MCHLERN COMUNITY - Panel Uploader</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
         body { background-color: #050507; color: #f4f4f5; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
@@ -29,10 +29,11 @@
 
     <aside class="w-full md:w-64 glass-panel border-r border-white/10 p-6 flex flex-col justify-between shrink-0">
         <div>
+            <!-- LOGO & NAMA BARU -->
             <div class="flex items-center gap-3 mb-10 pb-4 border-b border-white/10">
-                <div class="w-9 h-9 rounded-lg bg-white text-black font-bold flex items-center justify-center text-base tracking-tighter">RA</div>
-                <div>
-                    <h1 class="font-semibold text-sm tracking-wide text-white">ROBLOX UPLOADER</h1>
+                <img src="https://i.imgur.com/oqv7Bec.png" alt="Logo" class="w-9 h-9 rounded-lg object-cover border border-white/20">
+                <div class="overflow-hidden">
+                    <h1 class="font-semibold text-sm tracking-wide text-white truncate">MCHLERN COMUNITY</h1>
                     <p class="text-[11px] text-zinc-400">Open Cloud Manager</p>
                 </div>
             </div>
@@ -210,7 +211,6 @@
                         document.getElementById('discord-login-modal').classList.add('hidden');
                         applyDiscordProfile(data.user);
 
-                        // Muat profil Roblox yang tersimpan di server secara persisten
                         if (data.robloxUser) {
                             applyRobloxState(data.robloxUser);
                         }
@@ -277,7 +277,7 @@
                 const data = await res.json();
                 if (data.success) {
                     applyRobloxState(data.profile);
-                    alert('Akaun Roblox berjaya disambung dan disimpan secara kekal.');
+                    alert('Akaun Roblox berjaya disambung.');
                     switchTab('audio');
                 } else { alert('Gagal: ' + data.message); }
             } catch (err) { alert('Ralat rangkaian.'); }
@@ -481,6 +481,14 @@
             finally { document.getElementById('image-loading').classList.add('hidden'); }
         }
 
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Asset ID berjaya disalin: ' + text);
+            }).catch(err => {
+                alert('Gagal menyalin ID.');
+            });
+        }
+
         async function loadHistory() {
             if (!currentDiscordUser) return;
             try {
@@ -494,14 +502,24 @@
                         tbody.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-zinc-500 font-sans">No upload history found.</td></tr>`;
                         return;
                     }
-                    tbody.innerHTML = data.history.map(item => `
-                        <tr class="hover:bg-white/5">
-                            <td class="py-3 font-medium text-white">${item.name}</td>
-                            <td class="py-3"><span class="px-2 py-0.5 rounded text-[10px] font-medium ${item.type === 'Audio' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'bg-pink-500/10 text-pink-400 border border-pink-500/20'}">${item.type}</span></td>
-                            <td class="py-3 ${item.status === 'Success' ? 'text-emerald-400' : 'text-red-400'}">${item.assetId !== 'Gagal' ? 'ID: ' + item.assetId : item.status}</td>
-                            <td class="py-3 text-zinc-500">${item.time}</td>
-                        </tr>
-                    `).join('');
+                    tbody.innerHTML = data.history.map(item => {
+                        const displayId = item.assetId && item.assetId !== 'Gagal' ? item.assetId : (item.status || 'Sedang Diproses');
+                        const isNumericId = /^\d+$/.test(displayId);
+                        
+                        return `
+                            <tr class="hover:bg-white/5">
+                                <td class="py-3 font-medium text-white">${item.name}</td>
+                                <td class="py-3"><span class="px-2 py-0.5 rounded text-[10px] font-medium ${item.type === 'Audio' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'bg-pink-500/10 text-pink-400 border border-pink-500/20'}">${item.type}</span></td>
+                                <td class="py-3">
+                                    <div class="flex items-center gap-2">
+                                        <span class="${isNumericId ? 'text-emerald-400 font-bold' : 'text-amber-400'}">${isNumericId ? 'ID: ' + displayId : displayId}</span>
+                                        ${isNumericId ? `<button onclick="copyToClipboard('${displayId}')" class="px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-white text-[10px] transition border border-white/10">Copy ID</button>` : ''}
+                                    </div>
+                                </td>
+                                <td class="py-3 text-zinc-500">${item.time}</td>
+                            </tr>
+                        `;
+                    }).join('');
                 }
             } catch (err) { console.error(err); }
         }
