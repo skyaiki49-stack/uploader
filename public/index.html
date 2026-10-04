@@ -38,7 +38,7 @@
             </div>
             <nav class="space-y-1.5">
                 <button onclick="switchTab('audio')" id="btn-audio" class="nav-item active w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg border border-transparent transition text-left text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5">Audio Uploader</button>
-                <button onclick="switchTab('ytdl')" id="btn-ytdl" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg border border-transparent transition text-left text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5">YT & TikTok Downloader</button>
+                <button onclick="switchTab('ytdl')" id="btn-ytdl" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg border border-transparent transition text-left text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5">Audio Converter</button>
                 <button onclick="switchTab('image')" id="btn-image" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg border border-transparent transition text-left text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5">Image Uploader</button>
                 <button onclick="switchTab('history')" id="btn-history" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg border border-transparent transition text-left text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5">History & Limit</button>
                 <button onclick="switchTab('settings')" id="btn-settings" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg border border-transparent transition text-left text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5">Account Settings</button>
@@ -85,14 +85,14 @@
             </div>
         </section>
 
-        <!-- TAB YT & TIKTOK DOWNLOADER (BATCH UP TO 20 & AUDIO EFFECTS) -->
+        <!-- TAB AUDIO CONVERTER -->
         <section id="tab-ytdl" class="tab-content space-y-6 hidden">
             <div>
-                <h2 class="text-xl font-semibold text-white tracking-tight">YT & TikTok Downloader (Batch Mode)</h2>
-                <p class="text-xs text-zinc-400 mt-0.5">Fetch hingga 20 link sekaligus, atur efek bypass copyright, dan upload serentak ke Roblox.</p>
+                <h2 class="text-xl font-semibold text-white tracking-tight">Audio Converter (Batch Mode)</h2>
+                <p class="text-xs text-zinc-400 mt-0.5">Fetch hingga 20 link lagu, atur efek bypass copyright, dan upload serentak ke Roblox.</p>
             </div>
             
-            <!-- AUDIO EFFECT & BYPASS SETTINGS (DIPASANG DI PALING ATAS) -->
+            <!-- AUDIO EFFECT & BYPASS SETTINGS -->
             <div class="glass-panel p-6 rounded-xl space-y-4">
                 <h3 class="font-medium text-sm text-white border-b border-white/10 pb-2">Audio Effects & Copyright Bypass Settings</h3>
                 
@@ -256,8 +256,6 @@
         let currentRobloxUser = null;
         let selectedAudioFiles = [];
         let batchQueue = [];
-        let activeAudioElement = null;
-        let activePlayButton = null;
 
         window.addEventListener('DOMContentLoaded', async () => {
             const urlParams = new URLSearchParams(window.location.search);
@@ -362,7 +360,6 @@
             alert('Berhasil disconnect Roblox.');
         }
 
-        // --- AUDIO EFFECT & TEMPLATE FUNCTIONS ---
         function applySpeedTemplate(val) {
             document.getElementById('input-speed').value = val;
             updateSpeedRecommendation();
@@ -374,7 +371,6 @@
             document.getElementById('rec-playback-speed').textContent = playbackRec;
         }
 
-        // --- YT & TIKTOK DOWNLOADER BATCH FUNCTIONS (MAX 20) ---
         async function fetchAndQueueMedia() {
             const urlInput = document.getElementById('input-media-url');
             const url = urlInput.value.trim();
@@ -399,8 +395,7 @@
                         customTitle: data.media.title.substring(0, 50)
                     });
                     
-                    // Otomatis clear input setelah fetch berhasil
-                    urlInput.value = '';
+                    urlInput.value = ''; // Clear input otomatis setelah fetch
                     renderBatchQueue();
                 } else {
                     alert('Gagal mengambil metadata: ' + data.message);
@@ -485,7 +480,7 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    alert('Batch upload audio berjaya sepenuhnya!');
+                    alert('Batch audio converter berjaya diupload ke Roblox!');
                     batchQueue = [];
                     renderBatchQueue();
                     loadHistory();

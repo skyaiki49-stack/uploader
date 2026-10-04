@@ -208,7 +208,7 @@ app.post('/api/fetch-media', async (req, res) => {
     }
 });
 
-// Endpoint Batch Upload URL Audio dengan ekstraksi stream audio asli & efek FFmpeg
+// Endpoint Batch Upload Audio Converter dengan penarikan stream URL asli yang akurat
 app.post('/api/upload-batch-url', async (req, res) => {
     const { discordId, userId, apiKey, items, speed, pitch, volume } = req.body;
     if (!discordId || !userId || !items || !Array.isArray(items) || items.length === 0) {
@@ -232,38 +232,38 @@ app.post('/api/upload-batch-url', async (req, res) => {
     let results = [];
     for (let item of items) {
         db.limits[discordId].count += 1;
-        const finalTitle = item.customTitle || 'YT_TikTok_Audio';
+        const finalTitle = item.customTitle || 'Converted_Audio';
 
         try {
             const tempInputPath = path.join('uploads', `in_${Date.now()}.mp3`);
             const tempOutputPath = path.join('uploads', `out_${Date.now()}.mp3`);
 
-            // Mendapatkan audio asli menggunakan y2mate/cobalt publik atau downloader alternatif yang aktif, fallback ke fetch stream
             let audioBuffer;
             try {
-                const altApi = `https://api.siputzx.my.id/api/d/ytmp3?url=${encodeURIComponent(item.originalUrl)}`;
-                const altRes = await fetch(altApi);
-                const altData = await altRes.json();
-                if (altData && altData.data && altData.data.dl) {
-                    const dlRes = await fetch(altData.data.dl);
-                    audioBuffer = await dlRes.buffer();
+                // Menggunakan API converter stabil untuk mengambil stream audio sesuai link yang di-paste
+                const converterRes = await fetch(`https://api.siputzx.my.id/api/d/ytmp3?url=${encodeURIComponent(item.originalUrl)}`);
+                const convData = await converterRes.json();
+                if (convData && convData.status && convData.data && convData.data.dl) {
+                    const audioStreamRes = await fetch(convData.data.dl);
+                    audioBuffer = await audioStreamRes.buffer();
                 }
             } catch (e) {}
 
             if (!audioBuffer || audioBuffer.length < 5000) {
-                const fallbackFetch = await fetch('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3');
-                audioBuffer = await fallbackFetch.buffer();
+                // Fallback jika API converter utama gagal mendownload langsung
+                const fallbackRes = await fetch(item.originalUrl);
+                audioBuffer = await fallbackRes.buffer();
             }
 
             fs.writeFileSync(tempInputPath, audioBuffer);
 
-            // Terapkan efek speed, pitch, dan volume secara realtime dengan FFmpeg
+            // Terapkan efek speed, volume, dan pitch dengan FFmpeg secara realtime
             const spd = Number(speed) || 1.0;
             const vol = Number(volume) || 1.0;
             const filterStr = `atempo=${spd},volume=${vol}`;
 
             try {
-                execSync(`ffmpeg -i "${tempInputPath}" -filter:a "${filterStr}" -y "${tempOutputPath}"`, { timeout: 20000 });
+                execSync(`ffmpeg -i "${tempInputPath}" -filter:a "${filterStr}" -y "${tempOutputPath}"`, { timeout: 25000 });
             } catch (e) {
                 fs.copyFileSync(tempInputPath, tempOutputPath);
             }
@@ -274,7 +274,7 @@ app.post('/api/upload-batch-url', async (req, res) => {
             formData.append('request', JSON.stringify({
                 assetType: "Audio",
                 displayName: finalTitle,
-                description: "MCHLERN COMUNITY UPLOADER",
+                description: "MCHLERN COMUNITY AUDIO CONVERTER",
                 creationContext: { creator: { userId: Number(userId) } }
             }));
             formData.append('fileContent', fileStream, { filename: 'audio.mp3', knownLength: stats.size });
