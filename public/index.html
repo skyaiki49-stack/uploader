@@ -85,31 +85,62 @@
             </div>
         </section>
 
-        <!-- TAB YT & TIKTOK DOWNLOADER -->
+        <!-- TAB YT & TIKTOK DOWNLOADER (BATCH UP TO 20 & AUDIO EFFECTS) -->
         <section id="tab-ytdl" class="tab-content space-y-6 hidden">
             <div>
-                <h2 class="text-xl font-semibold text-white tracking-tight">YT & TikTok Downloader</h2>
-                <p class="text-xs text-zinc-400 mt-0.5">Tempel link YouTube atau TikTok, ambil metadata, dan upload langsung ke Roblox.</p>
+                <h2 class="text-xl font-semibold text-white tracking-tight">YT & TikTok Downloader (Batch Mode)</h2>
+                <p class="text-xs text-zinc-400 mt-0.5">Fetch hingga 20 link sekaligus, atur efek bypass copyright, dan upload serentak ke Roblox.</p>
             </div>
-            <div class="glass-panel p-6 rounded-xl space-y-5">
-                <div class="flex flex-col sm:flex-row gap-3">
-                    <input type="text" id="input-media-url" placeholder="Tempel link YouTube atau TikTok di sini..." class="input-box flex-1 px-4 py-3 rounded-lg text-xs">
-                    <button onclick="fetchMediaInfo()" id="btn-fetch" class="px-6 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition tracking-wide shrink-0 shadow-lg shadow-indigo-600/20">Fetch Media</button>
-                </div>
-
-                <div id="media-result-container" class="hidden space-y-4 pt-4 border-t border-white/10">
-                    <div class="flex flex-col sm:flex-row items-center gap-4 p-4 rounded-xl bg-black/40 border border-white/10">
-                        <img id="media-thumbnail" src="" alt="Thumbnail" class="w-28 h-20 rounded-lg object-cover border border-white/10 shrink-0">
-                        <div class="flex-1 overflow-hidden w-full">
-                            <h3 id="media-title" class="font-semibold text-sm text-white truncate"></h3>
-                            <p id="media-info" class="text-xs text-zinc-400 mt-1">Platform: YouTube / TikTok</p>
-                        </div>
+            
+            <!-- AUDIO EFFECT & BYPASS SETTINGS (DIPASANG DI PALING ATAS) -->
+            <div class="glass-panel p-6 rounded-xl space-y-4">
+                <h3 class="font-medium text-sm text-white border-b border-white/10 pb-2">Audio Effects & Copyright Bypass Settings</h3>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-zinc-300 mb-1">Speed Multiplier</label>
+                        <input type="number" id="input-speed" step="0.1" value="1.0" oninput="updateSpeedRecommendation()" class="input-box w-full px-3 py-2 rounded-lg text-xs">
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-zinc-300 mb-1.5">Custom Roblox Asset Title</label>
-                        <input type="text" id="input-custom-yt-title" placeholder="Nama audio di Roblox..." class="input-box w-full px-3.5 py-2.5 rounded-lg text-xs">
+                        <label class="block text-xs font-medium text-zinc-300 mb-1">Pitch Shift</label>
+                        <input type="number" id="input-pitch" step="0.1" value="1.0" class="input-box w-full px-3 py-2 rounded-lg text-xs">
                     </div>
-                    <button onclick="uploadYtAudioToRoblox()" id="btn-upload-yt" class="w-full py-3 rounded-lg bg-white text-black font-bold text-xs hover:bg-zinc-200 transition tracking-wider shadow-lg shadow-white/5">UPLOAD AUDIO KE ROBLOX</button>
+                    <div>
+                        <label class="block text-xs font-medium text-zinc-300 mb-1">Volume Gain</label>
+                        <input type="number" id="input-volume" step="0.1" value="1.0" class="input-box w-full px-3 py-2 rounded-lg text-xs">
+                    </div>
+                </div>
+
+                <!-- TEMPLATE BYPASS SPEED -->
+                <div>
+                    <label class="block text-xs font-medium text-zinc-300 mb-1.5">Template Bypass Speed (Klik untuk pilih):</label>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" onclick="applySpeedTemplate(2.3)" class="px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-white text-xs transition border border-white/10">2.3x</button>
+                        <button type="button" onclick="applySpeedTemplate(2.6)" class="px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-white text-xs transition border border-white/10">2.6x</button>
+                        <button type="button" onclick="applySpeedTemplate(1.6)" class="px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-white text-xs transition border border-white/10">1.6x</button>
+                        <button type="button" onclick="applySpeedTemplate(3.0)" class="px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-white text-xs transition border border-white/10">3.0x</button>
+                        <button type="button" onclick="applySpeedTemplate(1.5)" class="px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-white text-xs transition border border-white/10">1.5x</button>
+                    </div>
+                </div>
+
+                <!-- REKOMENDASI PLAYBACK SPEED IN-GAME -->
+                <div class="p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs">
+                    <span class="font-bold">Rekomendasi Playback Speed In-game:</span> <span id="rec-playback-speed" class="font-mono font-bold text-white">1.00</span> 
+                    <p class="text-[10px] text-zinc-400 mt-0.5">Atur nilai ini pada properti Sound/PlaybackSpeed di Roblox Studio agar suara kembali normal.</p>
+                </div>
+            </div>
+
+            <!-- INPUT LINK & BATCH QUEUE -->
+            <div class="glass-panel p-6 rounded-xl space-y-5">
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <input type="text" id="input-media-url" placeholder="Tempel link YouTube atau TikTok (Maks 20)..." class="input-box flex-1 px-4 py-3 rounded-lg text-xs">
+                    <button onclick="fetchAndQueueMedia()" id="btn-fetch" class="px-6 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition tracking-wide shrink-0 shadow-lg shadow-indigo-600/20">Fetch & Add (0/20)</button>
+                </div>
+
+                <div id="batch-queue-container" class="space-y-3 hidden">
+                    <h3 class="text-xs font-semibold text-zinc-300 uppercase tracking-wider">Queue List Audio (Batch)</h3>
+                    <div id="batch-items-list" class="space-y-3 max-h-80 overflow-y-auto pr-1"></div>
+                    <button onclick="uploadBatchYtAudio()" id="btn-upload-batch" class="w-full py-3 rounded-lg bg-white text-black font-bold text-xs hover:bg-zinc-200 transition tracking-wider shadow-lg shadow-white/5">UPLOAD SEMUA KE ROBLOX</button>
                 </div>
             </div>
         </section>
@@ -224,7 +255,7 @@
         let currentDiscordUser = null;
         let currentRobloxUser = null;
         let selectedAudioFiles = [];
-        let fetchedMediaData = null;
+        let batchQueue = [];
         let activeAudioElement = null;
         let activePlayButton = null;
 
@@ -261,6 +292,7 @@
             } else {
                 document.getElementById('discord-login-modal').classList.remove('hidden');
             }
+            updateSpeedRecommendation();
         });
 
         function applyDiscordProfile(user) {
@@ -330,10 +362,25 @@
             alert('Berhasil disconnect Roblox.');
         }
 
-        // --- YT & TIKTOK DOWNLOADER FUNCTIONS ---
-        async function fetchMediaInfo() {
-            const url = document.getElementById('input-media-url').value.trim();
+        // --- AUDIO EFFECT & TEMPLATE FUNCTIONS ---
+        function applySpeedTemplate(val) {
+            document.getElementById('input-speed').value = val;
+            updateSpeedRecommendation();
+        }
+
+        function updateSpeedRecommendation() {
+            const speed = parseFloat(document.getElementById('input-speed').value) || 1.0;
+            const playbackRec = speed > 0 ? (1.0 / speed).toFixed(2) : '1.00';
+            document.getElementById('rec-playback-speed').textContent = playbackRec;
+        }
+
+        // --- YT & TIKTOK DOWNLOADER BATCH FUNCTIONS (MAX 20) ---
+        async function fetchAndQueueMedia() {
+            const urlInput = document.getElementById('input-media-url');
+            const url = urlInput.value.trim();
             if (!url) { alert('Sila masukkan link YouTube atau TikTok.'); return; }
+            if (batchQueue.length >= 20) { alert('Maksimum 20 audio dalam satu batch.'); return; }
+
             const btn = document.getElementById('btn-fetch');
             btn.textContent = 'Fetching...';
 
@@ -345,55 +392,111 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    fetchedMediaData = data.media;
-                    document.getElementById('media-thumbnail').src = data.media.thumbnail;
-                    document.getElementById('media-title').textContent = data.media.title;
-                    document.getElementById('input-custom-yt-title').value = data.media.title.substring(0, 50);
-                    document.getElementById('media-result-container').classList.remove('hidden');
+                    batchQueue.push({
+                        originalUrl: data.media.originalUrl,
+                        title: data.media.title,
+                        thumbnail: data.media.thumbnail,
+                        customTitle: data.media.title.substring(0, 50)
+                    });
+                    
+                    // Otomatis clear input setelah fetch berhasil
+                    urlInput.value = '';
+                    renderBatchQueue();
                 } else {
                     alert('Gagal mengambil metadata: ' + data.message);
                 }
             } catch (e) {
                 alert('Ralat rangkaian semasa fetch media.');
             } finally {
-                btn.textContent = 'Fetch Media';
+                btn.textContent = `Fetch & Add (${batchQueue.length}/20)`;
             }
         }
 
-        async function uploadYtAudioToRoblox() {
+        function renderBatchQueue() {
+            const container = document.getElementById('batch-queue-container');
+            const listDiv = document.getElementById('batch-items-list');
+            const btnFetch = document.getElementById('btn-fetch');
+
+            btnFetch.textContent = `Fetch & Add (${batchQueue.length}/20)`;
+
+            if (batchQueue.length === 0) {
+                container.classList.add('hidden');
+                return;
+            }
+
+            container.classList.remove('hidden');
+            listDiv.innerHTML = '';
+
+            batchQueue.forEach((item, index) => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'flex flex-col gap-2 p-3.5 rounded-lg bg-black/40 border border-white/10';
+                itemDiv.innerHTML = `
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-3 overflow-hidden">
+                            <img src="${item.thumbnail}" class="w-10 h-10 rounded object-cover border border-white/10 shrink-0">
+                            <div class="text-xs truncate">
+                                <p class="font-medium text-white truncate">${item.title}</p>
+                                <p class="text-[10px] text-zinc-400 truncate">${item.originalUrl}</p>
+                            </div>
+                        </div>
+                        <button type="button" onclick="removeBatchItem(${index})" class="w-8 h-8 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 flex items-center justify-center font-bold text-xs shrink-0 border border-red-500/20 transition">✕</button>
+                    </div>
+                    <div class="w-full">
+                        <input type="text" oninput="updateBatchTitle(${index}, this.value)" value="${item.customTitle}" placeholder="Custom Title Roblox..." class="input-box w-full px-3 py-2 rounded-md text-xs">
+                    </div>
+                `;
+                listDiv.appendChild(itemDiv);
+            });
+        }
+
+        function removeBatchItem(index) {
+            batchQueue.splice(index, 1);
+            renderBatchQueue();
+        }
+
+        function updateBatchTitle(index, val) {
+            batchQueue[index].customTitle = val;
+        }
+
+        async function uploadBatchYtAudio() {
             if (!currentDiscordUser) { alert('Sila login Discord.'); return; }
             if (!currentRobloxUser) { alert('Sila connect akaun Roblox di Setting.'); switchTab('settings'); return; }
-            if (!fetchedMediaData) { alert('Sila fetch media terlebih dahulu.'); return; }
+            if (batchQueue.length === 0) { alert('Queue masih kosong.'); return; }
 
-            const customTitle = document.getElementById('input-custom-yt-title').value.trim() || fetchedMediaData.title;
-            const btn = document.getElementById('btn-upload-yt');
-            btn.textContent = 'Memproses & Mengupload ke Roblox...';
+            const speed = document.getElementById('input-speed').value;
+            const pitch = document.getElementById('input-pitch').value;
+            const volume = document.getElementById('input-volume').value;
+
+            const btn = document.getElementById('btn-upload-batch');
+            btn.textContent = `Memproses & Mengupload ${batchQueue.length} Audio ke Roblox...`;
             btn.disabled = true;
 
             try {
-                const res = await fetch('/api/upload-url-audio', {
+                const res = await fetch('/api/upload-batch-url', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         discordId: currentDiscordUser.id,
                         userId: currentRobloxUser.userId,
                         apiKey: currentRobloxUser.apiKey,
-                        mediaUrl: fetchedMediaData.originalUrl,
-                        customTitle: customTitle
+                        items: batchQueue,
+                        speed, pitch, volume
                     })
                 });
                 const data = await res.json();
                 if (data.success) {
-                    alert('Audio YouTube/TikTok berjaya diupload ke Roblox!');
+                    alert('Batch upload audio berjaya sepenuhnya!');
+                    batchQueue = [];
+                    renderBatchQueue();
                     loadHistory();
                     switchTab('history');
                 } else {
-                    alert('Gagal upload: ' + data.message);
+                    alert('Gagal batch upload: ' + data.message);
                 }
             } catch (err) {
-                alert('Ralat semasa menghantar media ke Roblox.');
+                alert('Ralat semasa menghantar batch media.');
             } finally {
-                btn.textContent = 'UPLOAD AUDIO KE ROBLOX';
+                btn.textContent = 'UPLOAD SEMUA KE ROBLOX';
                 btn.disabled = false;
             }
         }

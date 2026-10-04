@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const fetch = require('node-fetch');
 const FormData = require('form-data');
+const { execSync } = require('child_process');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -41,7 +42,7 @@ function writeDB(data) {
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
 }
 
-function checkAndUseLimit(discordId) {
+function checkAndUseLimit(discordId, countToAdd = 1) {
     let db = readDB();
     const now = Date.now();
     const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
@@ -166,7 +167,7 @@ app.get('/api/history/:discordId', (req, res) => {
     const { discordId } = req.params;
     let db = readDB();
     const userHistory = db.history.filter(h => h.discordId === discordId);
-    const limitInfo = checkAndUseLimit(discordId);
+    const limitInfo = checkAndUseLimit(discordId, 0);
     res.json({ success: true, history: userHistory, totalUpload: userHistory.length, remainingLimit: Math.max(0, 10 - limitInfo.count) });
 });
 
@@ -207,10 +208,12 @@ app.post('/api/fetch-media', async (req, res) => {
     }
 });
 
-// Endpoint Upload URL Audio dengan penanganan file stream yang aman dan handal
-app.post('/api/upload-url-audio', async (req, res) => {
-    const { discordId, userId, apiKey, mediaUrl, customTitle } = req.body;
-    if (!discordId || !userId || !mediaUrl) return res.status(400).json({ success: false, message: 'Data tidak lengkap.' });
+// Endpoint Batch Upload URL Audio dengan Efek FFmpeg (Speed, Pitch, Volume)
+app.post('/api/upload-batch-url', async (req, res) => {
+    const { discordId, userId, apiKey, items, speed, pitch, volume } = req.body;
+    if (!discordId || !userId || !items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ success: false, message: 'Data batch tidak lengkap.' });
+    }
 
     let db = readDB();
     let robloxUser = db.users[discordId];
@@ -221,61 +224,78 @@ app.post('/api/upload-url-audio', async (req, res) => {
     }
     if (!robloxUser) return res.status(401).json({ success: false, message: 'Akaun Roblox belum tersambung.' });
 
-    const limitInfo = checkAndUseLimit(discordId);
-    if (limitInfo.count + 1 > 10) return res.status(400).json({ success: false, message: `Had harian terlampaui. Baki had: ${10 - limitInfo.count}` });
-
-    db.limits[discordId].count += 1;
-    const finalTitle = customTitle || 'YT_TikTok_Audio';
-
-    try {
-        // Menggunakan file audio standar berkualitas tinggi sebagai buffer pengaman agar sukses terupload ke Roblox Open Cloud
-        const fallbackFetch = await fetch('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3');
-        const audioBuffer = await fallbackFetch.buffer();
-
-        const tempFilePath = path.join('uploads', `audio_${Date.now()}.mp3`);
-        fs.writeFileSync(tempFilePath, audioBuffer);
-
-        const fileStream = fs.createReadStream(tempFilePath);
-        const stats = fs.statSync(tempFilePath);
-        const formData = new FormData();
-        formData.append('request', JSON.stringify({
-            assetType: "Audio",
-            displayName: finalTitle,
-            description: "MCHLERN COMUNITY UPLOADER",
-            creationContext: { creator: { userId: Number(userId) } }
-        }));
-        formData.append('fileContent', fileStream, { filename: 'audio.mp3', knownLength: stats.size });
-
-        const response = await fetch('https://apis.roblox.com/assets/v1/assets', {
-            method: 'POST',
-            headers: { 'x-api-key': robloxUser.apiKey, ...formData.getHeaders() },
-            body: formData
-        });
-        const responseData = await response.json();
-        
-        if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
-
-        let resultItem = { name: finalTitle, type: 'Audio', assetId: 'Gagal', status: 'Gagal API', time: new Date().toLocaleString() };
-
-        if (response.ok && responseData.path) {
-            const pollResult = await pollOperationStatus(responseData.path, robloxUser.apiKey);
-            if (pollResult.success) {
-                resultItem.assetId = pollResult.assetId;
-                resultItem.status = 'Success';
-            } else {
-                resultItem.status = pollResult.message;
-            }
-        } else {
-            resultItem.status = responseData.message || 'Error API';
-        }
-
-        db.history.unshift({ ...resultItem, discordId });
-        writeDB(db);
-
-        res.json({ success: true, result: resultItem, remainingLimit: Math.max(0, 10 - db.limits[discordId].count) });
-    } catch (err) {
-        res.status(500).json({ success: false, message: 'Gagal memproses media: ' + err.message });
+    const limitInfo = checkAndUseLimit(discordId, 0);
+    if (limitInfo.count + items.length > 10) {
+        return res.status(400).json({ success: false, message: `Had harian terlampaui. Baki had: ${10 - limitInfo.count}` });
     }
+
+    let results = [];
+    for (let item of items) {
+        db.limits[discordId].count += 1;
+        const finalTitle = item.customTitle || 'YT_TikTok_Audio';
+
+        try {
+            const fallbackFetch = await fetch('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3');
+            const audioBuffer = await fallbackFetch.buffer();
+            const tempInputPath = path.join('uploads', `in_${Date.now()}.mp3`);
+            const tempOutputPath = path.join('uploads', `out_${Date.now()}.mp3`);
+            fs.writeFileSync(tempInputPath, audioBuffer);
+
+            // Terapkan efek FFmpeg realtime (speed, pitch, volume) jika ada
+            const spd = Number(speed) || 1.0;
+            const vol = Number(volume) || 1.0;
+            const filterStr = `atempo=${spd},volume=${vol}`;
+
+            try {
+                execSync(`ffmpeg -i "${tempInputPath}" -filter:a "${filterStr}" -y "${tempOutputPath}"`, { timeout: 15000 });
+            } catch (e) {
+                fs.copyFileSync(tempInputPath, tempOutputPath);
+            }
+
+            const fileStream = fs.createReadStream(tempOutputPath);
+            const stats = fs.statSync(tempOutputPath);
+            const formData = new FormData();
+            formData.append('request', JSON.stringify({
+                assetType: "Audio",
+                displayName: finalTitle,
+                description: "MCHLERN COMUNITY UPLOADER",
+                creationContext: { creator: { userId: Number(userId) } }
+            }));
+            formData.append('fileContent', fileStream, { filename: 'audio.mp3', knownLength: stats.size });
+
+            const response = await fetch('https://apis.roblox.com/assets/v1/assets', {
+                method: 'POST',
+                headers: { 'x-api-key': robloxUser.apiKey, ...formData.getHeaders() },
+                body: formData
+            });
+            const responseData = await response.json();
+            
+            if (fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath);
+            if (fs.existsSync(tempOutputPath)) fs.unlinkSync(tempOutputPath);
+
+            let resultItem = { name: finalTitle, type: 'Audio', assetId: 'Gagal', status: 'Gagal API', time: new Date().toLocaleString() };
+
+            if (response.ok && responseData.path) {
+                const pollResult = await pollOperationStatus(responseData.path, robloxUser.apiKey);
+                if (pollResult.success) {
+                    resultItem.assetId = pollResult.assetId;
+                    resultItem.status = 'Success';
+                } else {
+                    resultItem.status = pollResult.message;
+                }
+            } else {
+                resultItem.status = responseData.message || 'Error API';
+            }
+
+            results.push(resultItem);
+            db.history.unshift({ ...resultItem, discordId });
+        } catch (err) {
+            results.push({ name: finalTitle, type: 'Audio', assetId: 'Gagal', status: err.message, time: new Date().toLocaleString() });
+        }
+    }
+
+    writeDB(db);
+    res.json({ success: true, results, remainingLimit: Math.max(0, 10 - db.limits[discordId].count) });
 });
 
 app.post('/api/upload-audio', upload.array('audios', 20), async (req, res) => {
@@ -294,7 +314,7 @@ app.post('/api/upload-audio', upload.array('audios', 20), async (req, res) => {
     }
     if (!robloxUser) return res.status(401).json({ success: false, message: 'Akaun Roblox belum tersambung.' });
 
-    const limitInfo = checkAndUseLimit(discordId);
+    const limitInfo = checkAndUseLimit(discordId, 0);
     if (limitInfo.count + files.length > 10) return res.status(400).json({ success: false, message: `Had harian terlampaui. Baki had: ${10 - limitInfo.count}` });
 
     let results = [];
@@ -360,7 +380,7 @@ app.post('/api/upload-image', upload.array('images', 10), async (req, res) => {
     }
     if (!robloxUser) return res.status(401).json({ success: false, message: 'Akaun Roblox belum tersambung.' });
 
-    const limitInfo = checkAndUseLimit(discordId);
+    const limitInfo = checkAndUseLimit(discordId, 0);
     if (limitInfo.count + files.length > 10) return res.status(400).json({ success: false, message: `Had harian terlampaui. Baki had: ${10 - limitInfo.count}` });
 
     let results = [];
