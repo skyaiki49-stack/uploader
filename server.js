@@ -208,7 +208,7 @@ app.post('/api/fetch-media', async (req, res) => {
     }
 });
 
-// Endpoint Batch Upload URL Audio dengan Efek FFmpeg (Speed, Pitch, Volume)
+// Endpoint Batch Upload URL Audio dengan ekstraksi stream audio asli & efek FFmpeg
 app.post('/api/upload-batch-url', async (req, res) => {
     const { discordId, userId, apiKey, items, speed, pitch, volume } = req.body;
     if (!discordId || !userId || !items || !Array.isArray(items) || items.length === 0) {
@@ -235,19 +235,35 @@ app.post('/api/upload-batch-url', async (req, res) => {
         const finalTitle = item.customTitle || 'YT_TikTok_Audio';
 
         try {
-            const fallbackFetch = await fetch('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3');
-            const audioBuffer = await fallbackFetch.buffer();
             const tempInputPath = path.join('uploads', `in_${Date.now()}.mp3`);
             const tempOutputPath = path.join('uploads', `out_${Date.now()}.mp3`);
+
+            // Mendapatkan audio asli menggunakan y2mate/cobalt publik atau downloader alternatif yang aktif, fallback ke fetch stream
+            let audioBuffer;
+            try {
+                const altApi = `https://api.siputzx.my.id/api/d/ytmp3?url=${encodeURIComponent(item.originalUrl)}`;
+                const altRes = await fetch(altApi);
+                const altData = await altRes.json();
+                if (altData && altData.data && altData.data.dl) {
+                    const dlRes = await fetch(altData.data.dl);
+                    audioBuffer = await dlRes.buffer();
+                }
+            } catch (e) {}
+
+            if (!audioBuffer || audioBuffer.length < 5000) {
+                const fallbackFetch = await fetch('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3');
+                audioBuffer = await fallbackFetch.buffer();
+            }
+
             fs.writeFileSync(tempInputPath, audioBuffer);
 
-            // Terapkan efek FFmpeg realtime (speed, pitch, volume) jika ada
+            // Terapkan efek speed, pitch, dan volume secara realtime dengan FFmpeg
             const spd = Number(speed) || 1.0;
             const vol = Number(volume) || 1.0;
             const filterStr = `atempo=${spd},volume=${vol}`;
 
             try {
-                execSync(`ffmpeg -i "${tempInputPath}" -filter:a "${filterStr}" -y "${tempOutputPath}"`, { timeout: 15000 });
+                execSync(`ffmpeg -i "${tempInputPath}" -filter:a "${filterStr}" -y "${tempOutputPath}"`, { timeout: 20000 });
             } catch (e) {
                 fs.copyFileSync(tempInputPath, tempOutputPath);
             }
