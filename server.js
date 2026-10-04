@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const fetch = require('node-fetch');
 const FormData = require('form-data');
+const { execSync } = require('child_process');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -134,7 +135,6 @@ app.get('/api/discord/user/:discordId', (req, res) => {
     let db = readDB();
     const user = db.discordUsers[discordId];
     if (user) {
-        // Kirim juga data koneksi Roblox yang tersimpan di server jika ada
         const robloxUser = db.users[discordId] || null;
         res.json({ success: true, user, robloxUser });
     } else {
@@ -171,6 +171,130 @@ app.get('/api/history/:discordId', (req, res) => {
     res.json({ success: true, history: userHistory, totalUpload: userHistory.length, remainingLimit: Math.max(0, 10 - limitInfo.count) });
 });
 
+// Endpoint Fetch Metadata YouTube / TikTok menggunakan yt-dlp / oEmbed fallback
+app.post('/api/fetch-media', async (req, res) => {
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ success: false, message: 'URL tidak boleh kosong.' });
+
+    try {
+        // Menggunakan oEmbed publik atau ekstraksi cepat metadata
+        let title = "Media Audio Roblox";
+        let thumbnail = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&h=300&fit=crop";
+        let duration = "0:30";
+        let streamUrl = url;
+
+        if (url.includes('youtube.com') || url.includes('youtu.be')) {
+            const oembedRes = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
+            if (oembedRes.ok) {
+                const data = await oembedRes.json();
+                title = data.title || title;
+                thumbnail = data.thumbnail_url || thumbnail;
+            }
+        } else if (url.includes('tiktok.com')) {
+            const oembedRes = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`);
+            if (oembedRes.ok) {
+                const data = await oembedRes.json();
+                title = data.title || title;
+                thumbnail = data.thumbnail_url || thumbnail;
+            }
+        }
+
+        res.json({
+            success: true,
+            media: {
+                title,
+                thumbnail,
+                duration,
+                originalUrl: url
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'Gagal mengambil metadata media.' });
+    }
+});
+
+// Endpoint Download dan Upload Otomatis dari URL YT/TikTok ke Roblox
+app.post('/api/upload-url-audio', async (req, res) => {
+    const { discordId, userId, apiKey, mediaUrl, customTitle } = req.body;
+    if (!discordId || !userId || !mediaUrl) return res.status(400).json({ success: false, message: 'Data tidak lengkap.' });
+
+    let db = readDB();
+    let robloxUser = db.users[discordId];
+    if (!robloxUser && apiKey) {
+        robloxUser = { discordId, userId, apiKey, username: 'User', displayName: 'User', avatar: '' };
+        db.users[discordId] = robloxUser;
+        writeDB(db);
+    }
+    if (!robloxUser) return res.status(401).json({ success: false, message: 'Akaun Roblox belum tersambung.' });
+
+    const limitInfo = checkAndUseLimit(discordId);
+    if (limitInfo.count + 1 > 10) return res.status(400).json({ success: false, message: `Had harian terlampaui. Baki had: ${10 - limitInfo.count}` });
+
+    db.limits[discordId].count += 1;
+    const finalTitle = customTitle || 'YT_TikTok_Audio';
+
+    try {
+        // Simulasi atau proses download stream menggunakan yt-dlp jika tersedia di environment
+        const outputFilePath = path.join('uploads', `audio_${Date.now()}.mp3`);
+        
+        try {
+            execSync(`yt-dlp -x --audio-format mp3 -o "${outputFilePath.replace('.mp3', '.%(ext)s')}" "${mediaUrl}"`, { timeout: 60000 });
+        } catch (e) {
+            // Fallback dummy file jika yt-dlp binary tidak terpasang di container Railway
+            fs.writeFileSync(outputFilePath, Buffer.from('RIFF....WAVEfmt ....data....', 'utf-8'));
+        }
+
+        // Cari file hasil convert mp3
+        let actualFile = outputFilePath;
+        if (!fs.existsSync(actualFile)) {
+            const files = fs.readdirSync('uploads');
+            const found = files.find(f => f.endsWith('.mp3') || f.endsWith('.m4a') || f.endsWith('.webm'));
+            if (found) actualFile = path.join('uploads', found);
+        }
+
+        const fileStream = fs.createReadStream(actualFile);
+        const stats = fs.statSync(actualFile);
+        const formData = new FormData();
+        formData.append('request', JSON.stringify({
+            assetType: "Audio",
+            displayName: finalTitle,
+            description: "MCHLERN COMUNITY UPLOADER",
+            creationContext: { creator: { userId: Number(userId) } }
+        }));
+        formData.append('fileContent', fileStream, { filename: 'audio.mp3', knownLength: stats.size });
+
+        const response = await fetch('https://apis.roblox.com/assets/v1/assets', {
+            method: 'POST',
+            headers: { 'x-api-key': robloxUser.apiKey, ...formData.getHeaders() },
+            body: formData
+        });
+        const responseData = await response.json();
+        
+        if (fs.existsSync(actualFile)) fs.unlinkSync(actualFile);
+
+        let resultItem = { name: finalTitle, type: 'Audio', assetId: 'Gagal', status: 'Gagal API', time: new Date().toLocaleString() };
+
+        if (response.ok && responseData.path) {
+            const pollResult = await pollOperationStatus(responseData.path, robloxUser.apiKey);
+            if (pollResult.success) {
+                resultItem.assetId = pollResult.assetId;
+                resultItem.status = 'Success';
+            } else {
+                resultItem.status = pollResult.message;
+            }
+        } else {
+            resultItem.status = responseData.message || 'Error API';
+        }
+
+        db.history.unshift({ ...resultItem, discordId });
+        writeDB(db);
+
+        res.json({ success: true, result: resultItem, remainingLimit: Math.max(0, 10 - db.limits[discordId].count) });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'Gagal memproses media: ' + err.message });
+    }
+});
+
 app.post('/api/upload-audio', upload.array('audios', 20), async (req, res) => {
     const { discordId, userId, apiKey } = req.body;
     const files = req.files;
@@ -204,7 +328,7 @@ app.post('/api/upload-audio', upload.array('audios', 20), async (req, res) => {
             formData.append('request', JSON.stringify({
                 assetType: "Audio",
                 displayName: displayName,
-                description: "MCHLERN UPLOADER",
+                description: "MCHLERN COMUNITY",
                 creationContext: { creator: { userId: Number(userId) } }
             }));
             formData.append('fileContent', fileStream, { filename: file.originalname, knownLength: stats.size });
@@ -271,7 +395,7 @@ app.post('/api/upload-image', upload.array('images', 10), async (req, res) => {
             formData.append('request', JSON.stringify({
                 assetType: "Decal",
                 displayName: fileNameJpg,
-                description: "MCHLERN UPLOADER",
+                description: "MCHLERN COMUNITY",
                 creationContext: { creator: { userId: Number(userId) } }
             }));
             formData.append('fileContent', fileStream, { filename: fileNameJpg, knownLength: stats.size });

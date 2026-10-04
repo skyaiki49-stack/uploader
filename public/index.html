@@ -29,7 +29,6 @@
 
     <aside class="w-full md:w-64 glass-panel border-r border-white/10 p-6 flex flex-col justify-between shrink-0">
         <div>
-            <!-- LOGO & NAMA BARU -->
             <div class="flex items-center gap-3 mb-10 pb-4 border-b border-white/10">
                 <img src="https://i.imgur.com/oqv7Bec.png" alt="Logo" class="w-9 h-9 rounded-lg object-cover border border-white/20">
                 <div class="overflow-hidden">
@@ -39,6 +38,7 @@
             </div>
             <nav class="space-y-1.5">
                 <button onclick="switchTab('audio')" id="btn-audio" class="nav-item active w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg border border-transparent transition text-left text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5">Audio Uploader</button>
+                <button onclick="switchTab('ytdl')" id="btn-ytdl" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg border border-transparent transition text-left text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5">YT & TikTok Downloader</button>
                 <button onclick="switchTab('image')" id="btn-image" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg border border-transparent transition text-left text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5">Image Uploader</button>
                 <button onclick="switchTab('history')" id="btn-history" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg border border-transparent transition text-left text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5">History & Limit</button>
                 <button onclick="switchTab('settings')" id="btn-settings" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg border border-transparent transition text-left text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5">Account Settings</button>
@@ -55,10 +55,11 @@
         </div>
     </aside>
     <main class="flex-1 p-6 md:p-12 overflow-y-auto max-w-5xl">
+        <!-- TAB AUDIO UPLOADER -->
         <section id="tab-audio" class="tab-content space-y-6">
             <div>
                 <h2 class="text-xl font-semibold text-white tracking-tight">Audio Uploader</h2>
-                <p class="text-xs text-zinc-400 mt-0.5">Upload audio ke Roblox. Deskripsi otomatis: MCHLERN UPLOADER.</p>
+                <p class="text-xs text-zinc-400 mt-0.5">Upload audio ke Roblox. Deskripsi otomatis: MCHLERN COMUNITY.</p>
             </div>
             <div class="glass-panel p-6 rounded-xl space-y-5">
                 <div id="drop-zone-audio" class="border border-dashed border-white/20 rounded-xl p-8 text-center hover:border-white/40 transition cursor-pointer bg-black/20">
@@ -83,10 +84,41 @@
                 <button onclick="uploadAudio()" id="btn-upload-audio" class="w-full py-3 rounded-lg bg-white text-black font-bold text-xs hover:bg-zinc-200 transition tracking-wider hidden shadow-lg shadow-white/5">UPLOAD TO ROBLOX (0 AUDIO)</button>
             </div>
         </section>
+
+        <!-- TAB YT & TIKTOK DOWNLOADER -->
+        <section id="tab-ytdl" class="tab-content space-y-6 hidden">
+            <div>
+                <h2 class="text-xl font-semibold text-white tracking-tight">YT & TikTok Downloader</h2>
+                <p class="text-xs text-zinc-400 mt-0.5">Tempel link YouTube atau TikTok, ambil metadata, dan upload langsung ke Roblox.</p>
+            </div>
+            <div class="glass-panel p-6 rounded-xl space-y-5">
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <input type="text" id="input-media-url" placeholder="Tempel link YouTube atau TikTok di sini..." class="input-box flex-1 px-4 py-3 rounded-lg text-xs">
+                    <button onclick="fetchMediaInfo()" id="btn-fetch" class="px-6 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition tracking-wide shrink-0 shadow-lg shadow-indigo-600/20">Fetch Media</button>
+                </div>
+
+                <div id="media-result-container" class="hidden space-y-4 pt-4 border-t border-white/10">
+                    <div class="flex flex-col sm:flex-row items-center gap-4 p-4 rounded-xl bg-black/40 border border-white/10">
+                        <img id="media-thumbnail" src="" alt="Thumbnail" class="w-28 h-20 rounded-lg object-cover border border-white/10 shrink-0">
+                        <div class="flex-1 overflow-hidden w-full">
+                            <h3 id="media-title" class="font-semibold text-sm text-white truncate"></h3>
+                            <p id="media-info" class="text-xs text-zinc-400 mt-1">Platform: YouTube / TikTok</p>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-zinc-300 mb-1.5">Custom Roblox Asset Title</label>
+                        <input type="text" id="input-custom-yt-title" placeholder="Nama audio di Roblox..." class="input-box w-full px-3.5 py-2.5 rounded-lg text-xs">
+                    </div>
+                    <button onclick="uploadYtAudioToRoblox()" id="btn-upload-yt" class="w-full py-3 rounded-lg bg-white text-black font-bold text-xs hover:bg-zinc-200 transition tracking-wider shadow-lg shadow-white/5">UPLOAD AUDIO KE ROBLOX</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB IMAGE UPLOADER -->
         <section id="tab-image" class="tab-content space-y-6 hidden">
             <div>
                 <h2 class="text-xl font-semibold text-white tracking-tight">Image Uploader</h2>
-                <p class="text-xs text-zinc-400 mt-0.5">Upload gambar otomatis JPG. Deskripsi otomatis: MCHLERN UPLOADER.</p>
+                <p class="text-xs text-zinc-400 mt-0.5">Upload gambar otomatis JPG. Deskripsi otomatis: MCHLERN COMUNITY.</p>
             </div>
             <div class="glass-panel p-6 rounded-xl space-y-5">
                 <div>
@@ -104,6 +136,8 @@
                 <div id="image-loading" class="text-center text-xs text-zinc-400 hidden">Sedang mengupload gambar ke Roblox...</div>
             </div>
         </section>
+
+        <!-- TAB HISTORY & LIMIT -->
         <section id="tab-history" class="tab-content space-y-6 hidden">
             <div>
                 <h2 class="text-xl font-semibold text-white tracking-tight">History & Limit</h2>
@@ -140,6 +174,8 @@
                 </div>
             </div>
         </section>
+
+        <!-- TAB SETTINGS -->
         <section id="tab-settings" class="tab-content space-y-6 hidden">
             <div>
                 <h2 class="text-xl font-semibold text-white tracking-tight">Account Settings</h2>
@@ -188,6 +224,7 @@
         let currentDiscordUser = null;
         let currentRobloxUser = null;
         let selectedAudioFiles = [];
+        let fetchedMediaData = null;
         let activeAudioElement = null;
         let activePlayButton = null;
 
@@ -291,6 +328,74 @@
             document.getElementById('input-userid').value = '';
             document.getElementById('input-apikey').value = '';
             alert('Berhasil disconnect Roblox.');
+        }
+
+        // --- YT & TIKTOK DOWNLOADER FUNCTIONS ---
+        async function fetchMediaInfo() {
+            const url = document.getElementById('input-media-url').value.trim();
+            if (!url) { alert('Sila masukkan link YouTube atau TikTok.'); return; }
+            const btn = document.getElementById('btn-fetch');
+            btn.textContent = 'Fetching...';
+
+            try {
+                const res = await fetch('/api/fetch-media', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    fetchedMediaData = data.media;
+                    document.getElementById('media-thumbnail').src = data.media.thumbnail;
+                    document.getElementById('media-title').textContent = data.media.title;
+                    document.getElementById('input-custom-yt-title').value = data.media.title.substring(0, 50);
+                    document.getElementById('media-result-container').classList.remove('hidden');
+                } else {
+                    alert('Gagal mengambil metadata: ' + data.message);
+                }
+            } catch (e) {
+                alert('Ralat rangkaian semasa fetch media.');
+            } finally {
+                btn.textContent = 'Fetch Media';
+            }
+        }
+
+        async function uploadYtAudioToRoblox() {
+            if (!currentDiscordUser) { alert('Sila login Discord.'); return; }
+            if (!currentRobloxUser) { alert('Sila connect akaun Roblox di Setting.'); switchTab('settings'); return; }
+            if (!fetchedMediaData) { alert('Sila fetch media terlebih dahulu.'); return; }
+
+            const customTitle = document.getElementById('input-custom-yt-title').value.trim() || fetchedMediaData.title;
+            const btn = document.getElementById('btn-upload-yt');
+            btn.textContent = 'Memproses & Mengupload ke Roblox...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/upload-url-audio', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        discordId: currentDiscordUser.id,
+                        userId: currentRobloxUser.userId,
+                        apiKey: currentRobloxUser.apiKey,
+                        mediaUrl: fetchedMediaData.originalUrl,
+                        customTitle: customTitle
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert('Audio YouTube/TikTok berjaya diupload ke Roblox!');
+                    loadHistory();
+                    switchTab('history');
+                } else {
+                    alert('Gagal upload: ' + data.message);
+                }
+            } catch (err) {
+                alert('Ralat semasa menghantar media ke Roblox.');
+            } finally {
+                btn.textContent = 'UPLOAD AUDIO KE ROBLOX';
+                btn.disabled = false;
+            }
         }
 
         document.getElementById('file-audio').addEventListener('change', (e) => {
