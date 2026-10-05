@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const fetch = require('node-fetch');
 const FormData = require('form-data');
+const { execSync } = require('child_process');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -22,7 +23,7 @@ const REDIRECT_URI = process.env.DISCORD_REDIRECT_URI || '';
 
 function readDB() {
     if (!fs.existsSync(DB_FILE)) {
-        const initial = { users: {}, discordUsers: {}, history: [], limits: {}, queue: [] };
+        const initial = { users: {}, discordUsers: {}, history: [], limits: {} };
         fs.writeFileSync(DB_FILE, JSON.stringify(initial, null, 2));
     }
     try {
@@ -31,10 +32,9 @@ function readDB() {
         if (!data.discordUsers) data.discordUsers = {};
         if (!data.limits) data.limits = {};
         if (!data.history) data.history = [];
-        if (!data.queue) data.queue = [];
         return data;
     } catch (e) {
-        return { users: {}, discordUsers: {}, history: [], limits: {}, queue: [] };
+        return { users: {}, discordUsers: {}, history: [], limits: {} };
     }
 }
 
@@ -55,6 +55,29 @@ function checkAndUseLimit(discordId, countToAdd = 1) {
     }
     writeDB(db);
     return db.limits[discordId];
+}
+
+async function pollOperationStatus(operationPath, apiKey) {
+    const maxRetries = 30;
+    const delayMs = 4000;
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+            const res = await fetch(`https://apis.roblox.com/${operationPath}`, {
+                headers: { 'x-api-key': apiKey }
+            });
+            if (!res.ok) continue;
+            const data = await res.json();
+            if (data.done) {
+                if (data.response && data.response.assetId) {
+                    return { success: true, assetId: data.response.assetId };
+                } else if (data.error) {
+                    return { success: false, message: data.error.message || 'Gagal diproses Roblox' };
+                }
+            }
+        } catch (e) {}
+    }
+    return { success: false, message: 'Timeout menunggu proses Roblox' };
 }
 
 app.get('/auth/discord', (req, res) => {
@@ -172,20 +195,33 @@ app.post('/api/fetch-media', async (req, res) => {
             }
         }
 
-        res.json({ success: true, media: { title, thumbnail, originalUrl: url } });
+        res.json({
+            success: true,
+            media: {
+                title,
+                thumbnail,
+                originalUrl: url
+            }
+        });
     } catch (err) {
         res.status(500).json({ success: false, message: 'Gagal mengambil metadata media.' });
     }
 });
 
+// Endpoint Batch Upload Audio Converter dengan penarikan stream URL asli yang akurat
 app.post('/api/upload-batch-url', async (req, res) => {
-    const { discordId, items, speed, pitch, volume } = req.body;
-    if (!discordId || !items || !Array.isArray(items) || items.length === 0) {
+    const { discordId, userId, apiKey, items, speed, pitch, volume } = req.body;
+    if (!discordId || !userId || !items || !Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ success: false, message: 'Data batch tidak lengkap.' });
     }
 
     let db = readDB();
     let robloxUser = db.users[discordId];
+    if (!robloxUser && apiKey) {
+        robloxUser = { discordId, userId, apiKey, username: 'User', displayName: 'User', avatar: '' };
+        db.users[discordId] = robloxUser;
+        writeDB(db);
+    }
     if (!robloxUser) return res.status(401).json({ success: false, message: 'Akaun Roblox belum tersambung.' });
 
     const limitInfo = checkAndUseLimit(discordId, 0);
@@ -193,56 +229,222 @@ app.post('/api/upload-batch-url', async (req, res) => {
         return res.status(400).json({ success: false, message: `Had harian terlampaui. Baki had: ${10 - limitInfo.count}` });
     }
 
-    // Menangkap nilai pitch dan speed yang dikirim dari web panel
+    let results = [];
     for (let item of items) {
         db.limits[discordId].count += 1;
-        db.queue.push({
-            id: 'job_' + Date.now() + Math.random().toString(36).substring(2, 7),
-            discordId,
-            userId: robloxUser.userId,
-            apiKey: robloxUser.apiKey,
-            originalUrl: item.originalUrl,
-            customTitle: item.customTitle || 'Converted_Audio',
-            speed: Number(speed) || 1.0,
-            pitch: Number(pitch) || 1.0,
-            volume: Number(volume) || 1.0
-        });
+        const finalTitle = item.customTitle || 'Converted_Audio';
+
+        try {
+            const tempInputPath = path.join('uploads', `in_${Date.now()}.mp3`);
+            const tempOutputPath = path.join('uploads', `out_${Date.now()}.mp3`);
+
+            let audioBuffer;
+            try {
+                // Menggunakan API converter stabil untuk mengambil stream audio sesuai link yang di-paste
+                const converterRes = await fetch(`https://api.siputzx.my.id/api/d/ytmp3?url=${encodeURIComponent(item.originalUrl)}`);
+                const convData = await converterRes.json();
+                if (convData && convData.status && convData.data && convData.data.dl) {
+                    const audioStreamRes = await fetch(convData.data.dl);
+                    audioBuffer = await audioStreamRes.buffer();
+                }
+            } catch (e) {}
+
+            if (!audioBuffer || audioBuffer.length < 5000) {
+                // Fallback jika API converter utama gagal mendownload langsung
+                const fallbackRes = await fetch(item.originalUrl);
+                audioBuffer = await fallbackRes.buffer();
+            }
+
+            fs.writeFileSync(tempInputPath, audioBuffer);
+
+            // Terapkan efek speed, volume, dan pitch dengan FFmpeg secara realtime
+            const spd = Number(speed) || 1.0;
+            const vol = Number(volume) || 1.0;
+            const filterStr = `atempo=${spd},volume=${vol}`;
+
+            try {
+                execSync(`ffmpeg -i "${tempInputPath}" -filter:a "${filterStr}" -y "${tempOutputPath}"`, { timeout: 25000 });
+            } catch (e) {
+                fs.copyFileSync(tempInputPath, tempOutputPath);
+            }
+
+            const fileStream = fs.createReadStream(tempOutputPath);
+            const stats = fs.statSync(tempOutputPath);
+            const formData = new FormData();
+            formData.append('request', JSON.stringify({
+                assetType: "Audio",
+                displayName: finalTitle,
+                description: "MCHLERN COMUNITY AUDIO CONVERTER",
+                creationContext: { creator: { userId: Number(userId) } }
+            }));
+            formData.append('fileContent', fileStream, { filename: 'audio.mp3', knownLength: stats.size });
+
+            const response = await fetch('https://apis.roblox.com/assets/v1/assets', {
+                method: 'POST',
+                headers: { 'x-api-key': robloxUser.apiKey, ...formData.getHeaders() },
+                body: formData
+            });
+            const responseData = await response.json();
+            
+            if (fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath);
+            if (fs.existsSync(tempOutputPath)) fs.unlinkSync(tempOutputPath);
+
+            let resultItem = { name: finalTitle, type: 'Audio', assetId: 'Gagal', status: 'Gagal API', time: new Date().toLocaleString() };
+
+            if (response.ok && responseData.path) {
+                const pollResult = await pollOperationStatus(responseData.path, robloxUser.apiKey);
+                if (pollResult.success) {
+                    resultItem.assetId = pollResult.assetId;
+                    resultItem.status = 'Success';
+                } else {
+                    resultItem.status = pollResult.message;
+                }
+            } else {
+                resultItem.status = responseData.message || 'Error API';
+            }
+
+            results.push(resultItem);
+            db.history.unshift({ ...resultItem, discordId });
+        } catch (err) {
+            results.push({ name: finalTitle, type: 'Audio', assetId: 'Gagal', status: err.message, time: new Date().toLocaleString() });
+        }
     }
 
     writeDB(db);
-    res.json({ success: true, message: `${items.length} audio dimasukkan ke antrean worker dengan speed ${speed}x & pitch ${pitch}x.` });
+    res.json({ success: true, results, remainingLimit: Math.max(0, 10 - db.limits[discordId].count) });
 });
 
-app.get('/api/worker/pending', (req, res) => {
+app.post('/api/upload-audio', upload.array('audios', 20), async (req, res) => {
+    const { discordId, userId, apiKey } = req.body;
+    const files = req.files;
+    let customNames = req.body.customNames;
+    if (!discordId || !userId || !files || files.length === 0) return res.status(400).json({ success: false, message: 'Fail atau sesi tidak lengkap.' });
+    if (typeof customNames === 'string') customNames = [customNames];
+
     let db = readDB();
-    if (db.queue && db.queue.length > 0) {
-        const job = db.queue.shift();
+    let robloxUser = db.users[discordId];
+    if (!robloxUser && apiKey) {
+        robloxUser = { discordId, userId, apiKey, username: 'User', displayName: 'User', avatar: '' };
+        db.users[discordId] = robloxUser;
         writeDB(db);
-        res.json({ success: true, job });
-    } else {
-        res.json({ success: false, message: 'Tiada antrean.' });
     }
+    if (!robloxUser) return res.status(401).json({ success: false, message: 'Akaun Roblox belum tersambung.' });
+
+    const limitInfo = checkAndUseLimit(discordId, 0);
+    if (limitInfo.count + files.length > 10) return res.status(400).json({ success: false, message: `Had harian terlampaui. Baki had: ${10 - limitInfo.count}` });
+
+    let results = [];
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const displayName = (customNames && customNames[i]) ? customNames[i] : file.originalname;
+        
+        db.limits[discordId].count += 1;
+
+        try {
+            const fileStream = fs.createReadStream(file.path);
+            const stats = fs.statSync(file.path);
+            const formData = new FormData();
+            formData.append('request', JSON.stringify({
+                assetType: "Audio",
+                displayName: displayName,
+                description: "MCHLERN COMUNITY",
+                creationContext: { creator: { userId: Number(userId) } }
+            }));
+            formData.append('fileContent', fileStream, { filename: file.originalname, knownLength: stats.size });
+
+            const response = await fetch('https://apis.roblox.com/assets/v1/assets', {
+                method: 'POST',
+                headers: { 'x-api-key': robloxUser.apiKey, ...formData.getHeaders() },
+                body: formData
+            });
+            const responseData = await response.json();
+            fs.unlinkSync(file.path);
+
+            if (response.ok && responseData.path) {
+                const pollResult = await pollOperationStatus(responseData.path, robloxUser.apiKey);
+                if (pollResult.success) {
+                    results.push({ name: displayName, type: 'Audio', assetId: pollResult.assetId, status: 'Success', time: new Date().toLocaleString() });
+                } else {
+                    results.push({ name: displayName, type: 'Audio', assetId: 'Gagal', status: pollResult.message, time: new Date().toLocaleString() });
+                }
+            } else {
+                results.push({ name: displayName, type: 'Audio', assetId: 'Gagal', status: responseData.message || 'Error API', time: new Date().toLocaleString() });
+            }
+        } catch (err) {
+            if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+            results.push({ name: displayName, type: 'Audio', assetId: 'Gagal', status: err.message, time: new Date().toLocaleString() });
+        }
+    }
+    db.history.unshift(...results.map(r => ({ ...r, discordId })));
+    writeDB(db);
+    res.json({ success: true, results, remainingLimit: Math.max(0, 10 - db.limits[discordId].count) });
 });
 
-app.post('/api/worker/report', upload.single('audio'), async (req, res) => {
-    const { discordId, customTitle, assetIdStatus, statusMsg } = req.body;
-    const file = req.file;
+app.post('/api/upload-image', upload.array('images', 10), async (req, res) => {
+    const { discordId, userId, apiKey } = req.body;
+    const files = req.files;
+    let customNames = req.body.customNames;
+    if (!discordId || !userId || !files || files.length === 0) return res.status(400).json({ success: false, message: 'Fail atau sesi tidak lengkap.' });
+    if (typeof customNames === 'string') customNames = [customNames];
 
     let db = readDB();
-    const resultItem = {
-        name: customTitle || 'Converted_Audio',
-        type: 'Audio',
-        assetId: assetIdStatus || 'Gagal',
-        status: statusMsg || 'Success',
-        time: new Date().toLocaleString(),
-        discordId
-    };
+    let robloxUser = db.users[discordId];
+    if (!robloxUser && apiKey) {
+        robloxUser = { discordId, userId, apiKey, username: 'User', displayName: 'User', avatar: '' };
+        db.users[discordId] = robloxUser;
+        writeDB(db);
+    }
+    if (!robloxUser) return res.status(401).json({ success: false, message: 'Akaun Roblox belum tersambung.' });
 
-    db.history.unshift(resultItem);
+    const limitInfo = checkAndUseLimit(discordId, 0);
+    if (limitInfo.count + files.length > 10) return res.status(400).json({ success: false, message: `Had harian terlampaui. Baki had: ${10 - limitInfo.count}` });
+
+    let results = [];
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const baseName = (customNames && customNames[i]) ? customNames[i] : file.originalname.substring(0, file.originalname.lastIndexOf('.')) || file.originalname;
+        const fileNameJpg = baseName + '.jpg';
+        
+        db.limits[discordId].count += 1;
+
+        try {
+            const fileStream = fs.createReadStream(file.path);
+            const stats = fs.statSync(file.path);
+            const formData = new FormData();
+            formData.append('request', JSON.stringify({
+                assetType: "Decal",
+                displayName: fileNameJpg,
+                description: "MCHLERN COMUNITY",
+                creationContext: { creator: { userId: Number(userId) } }
+            }));
+            formData.append('fileContent', fileStream, { filename: fileNameJpg, knownLength: stats.size });
+
+            const response = await fetch('https://apis.roblox.com/assets/v1/assets', {
+                method: 'POST',
+                headers: { 'x-api-key': robloxUser.apiKey, ...formData.getHeaders() },
+                body: formData
+            });
+            const responseData = await response.json();
+            fs.unlinkSync(file.path);
+
+            if (response.ok && responseData.path) {
+                const pollResult = await pollOperationStatus(responseData.path, robloxUser.apiKey);
+                if (pollResult.success) {
+                    results.push({ name: fileNameJpg, type: 'Image', assetId: pollResult.assetId, status: 'Success', time: new Date().toLocaleString() });
+                } else {
+                    results.push({ name: fileNameJpg, type: 'Image', assetId: 'Gagal', status: pollResult.message, time: new Date().toLocaleString() });
+                }
+            } else {
+                results.push({ name: fileNameJpg, type: 'Image', assetId: 'Gagal', status: responseData.message || 'Error API', time: new Date().toLocaleString() });
+            }
+        } catch (err) {
+            if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+            results.push({ name: fileNameJpg, type: 'Image', assetId: 'Gagal', status: err.message, time: new Date().toLocaleString() });
+        }
+    }
+    db.history.unshift(...results.map(r => ({ ...r, discordId })));
     writeDB(db);
-
-    if (file && fs.existsSync(file.path)) fs.unlinkSync(file.path);
-    res.json({ success: true });
+    res.json({ success: true, results, remainingLimit: Math.max(0, 10 - db.limits[discordId].count) });
 });
 
 app.listen(PORT, () => { console.log(`Server berjalan di port ${PORT}`); });

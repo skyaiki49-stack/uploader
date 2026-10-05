@@ -1,233 +1,735 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MCHLERN Roblox Audio Uploader</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>MCHLERN COMUNITY - Panel Uploader</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        body { background-color: #050507; color: #f4f4f5; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
+        .glass-panel { border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(12, 12, 16, 0.85); backdrop-filter: blur(16px); }
+        .input-box { border: 1px solid rgba(255, 255, 255, 0.15); background: #09090c; color: white; outline: none; transition: all 0.2s; }
+        .input-box:focus { border-color: rgba(255, 255, 255, 0.8); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15); }
+        .nav-item.active { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.4); color: #ffffff; }
+    </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center p-4">
-
-    <div class="w-full max-w-2xl bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
-        <h1 class="text-2xl font-bold mb-4 text-center text-indigo-400">MCHLERN Audio Uploader Panel</h1>
-        
-        <!-- Status Akun -->
-        <div id="auth-section" class="mb-6 p-4 bg-slate-900 rounded-xl border border-slate-700 flex flex-col items-center">
-            <p id="user-status" class="text-sm text-slate-400 mb-3">Memeriksa sambungan Discord & Roblox...</p>
-            <a id="discord-login-btn" href="/auth/discord" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-medium transition text-sm">Login via Discord</a>
-        </div>
-
-        <!-- Tab Audio Converter & Worker -->
-        <div id="uploader-section" class="hidden space-y-4">
-            <div class="bg-slate-900 p-4 rounded-xl border border-slate-700">
-                <h2 class="text-lg font-semibold mb-3 text-indigo-300">Audio Converter & Bypass Worker</h2>
-                
-                <div class="space-y-3">
-                    <div>
-                        <label class="block text-xs text-slate-400 mb-1">Link YouTube / TikTok / Media</label>
-                        <input type="text" id="media-url" placeholder="https://www.youtube.com/watch?v=..." class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
-                    </div>
-                    
-                    <div class="grid grid-cols-3 gap-2">
-                        <div>
-                            <label class="block text-xs text-slate-400 mb-1">Speed</label>
-                            <input type="number" id="audio-speed" value="1.0" step="0.1" min="0.5" max="3.0" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2 text-sm text-white">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-slate-400 mb-1">Pitch</label>
-                            <input type="number" id="audio-pitch" value="1.0" step="0.1" min="0.5" max="2.0" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2 text-sm text-white">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-slate-400 mb-1">Volume</label>
-                            <input type="number" id="audio-volume" value="1.0" step="0.1" min="0.1" max="2.0" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2 text-sm text-white">
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs text-slate-400 mb-1">Judul Custom Audio di Roblox</label>
-                        <input type="text" id="custom-title" placeholder="Nama Audio" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2.5 text-sm text-white">
-                    </div>
-
-                    <button onclick="submitQueue()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 rounded-lg transition text-sm">
-                        Kirim ke Antrean Worker Termux
-                    </button>
-                </div>
+<body class="min-h-screen flex flex-col md:flex-row antialiased selection:bg-white selection:text-black">
+    <div id="discord-login-modal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-6 hidden">
+        <div class="glass-panel p-8 rounded-2xl max-w-md w-full text-center space-y-6 border border-white/10 shadow-2xl">
+            <div class="w-16 h-16 bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 rounded-2xl mx-auto flex items-center justify-center text-2xl font-bold">💎</div>
+            <div>
+                <h1 class="text-xl font-bold text-white tracking-tight">Login Diperlukan</h1>
+                <p class="text-xs text-zinc-400 mt-1">Sila authorize menggunakan akaun Discord anda untuk mengakses panel uploader dan kuota harian.</p>
             </div>
-
-            <!-- Progress Bar Real-Time (Ditambahkan tanpa merusak layout) -->
-            <div id="progress-container" class="hidden bg-slate-900 p-4 rounded-xl border border-slate-700">
-                <div class="flex justify-between text-xs text-slate-400 mb-1">
-                    <span id="progress-status-text">Memproses antrean...</span>
-                    <span id="progress-percentage">0%</span>
-                </div>
-                <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
-                    <div id="upload-progress-bar" class="bg-indigo-500 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
-                </div>
-            </div>
-
-            <!-- Riwayat Upload -->
-            <div class="bg-slate-900 p-4 rounded-xl border border-slate-700">
-                <h3 class="text-sm font-semibold text-slate-300 mb-2">Riwayat Upload Terakhir</h3>
-                <div id="history-list" class="space-y-2 text-xs text-slate-400 max-h-40 overflow-y-auto">
-                    <p>Memuat riwayat...</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Setup Roblox API Key -->
-        <div id="settings-section" class="mt-6 pt-4 border-t border-slate-700">
-            <h3 class="text-sm font-semibold text-slate-300 mb-2">Koneksi Roblox Open Cloud</h3>
-            <div class="space-y-2">
-                <input type="text" id="roblox-userid" placeholder="Roblox User ID" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-white">
-                <input type="password" id="roblox-apikey" placeholder="Open Cloud API Key" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-white">
-                <button onclick="connectRoblox()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2 rounded-lg text-sm transition">Simpan & Sambungkan</button>
-            </div>
+            <a href="/auth/discord" class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition tracking-wide flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20">
+                Login dengan Discord
+            </a>
         </div>
     </div>
 
-    <script>
-        const urlParams = new URLSearchParams(window.location.search);
-        const discordId = urlParams.get('discordId');
+    <aside class="w-full md:w-64 glass-panel border-r border-white/10 p-6 flex flex-col justify-between shrink-0">
+        <div>
+            <div class="flex items-center gap-3 mb-10 pb-4 border-b border-white/10">
+                <img src="https://i.imgur.com/oqv7Bec.png" alt="Logo" class="w-9 h-9 rounded-lg object-cover border border-white/20">
+                <div class="overflow-hidden">
+                    <h1 class="font-semibold text-sm tracking-wide text-white truncate">MCHLERN COMUNITY</h1>
+                    <p class="text-[11px] text-zinc-400">Open Cloud Manager</p>
+                </div>
+            </div>
+            <nav class="space-y-1.5">
+                <button onclick="switchTab('audio')" id="btn-audio" class="nav-item active w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg border border-transparent transition text-left text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5">Audio Uploader</button>
+                <button onclick="switchTab('ytdl')" id="btn-ytdl" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg border border-transparent transition text-left text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5">Audio Converter</button>
+                <button onclick="switchTab('image')" id="btn-image" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg border border-transparent transition text-left text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5">Image Uploader</button>
+                <button onclick="switchTab('history')" id="btn-history" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg border border-transparent transition text-left text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5">History & Limit</button>
+                <button onclick="switchTab('settings')" id="btn-settings" class="nav-item w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg border border-transparent transition text-left text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5">Account Settings</button>
+            </nav>
+        </div>
+        <div id="sidebar-profile" class="glass-panel p-3 rounded-lg mt-6 border border-white/10 bg-black/40">
+            <div class="flex items-center gap-3">
+                <img id="sidebar-avatar" src="" alt="Avatar" class="w-8 h-8 rounded-full border border-white/20 object-cover">
+                <div class="overflow-hidden">
+                    <p id="sidebar-display" class="font-medium text-xs text-white truncate"></p>
+                    <p id="sidebar-username" class="text-[10px] text-zinc-400 truncate"></p>
+                </div>
+            </div>
+        </div>
+    </aside>
+    <main class="flex-1 p-6 md:p-12 overflow-y-auto max-w-5xl">
+        <!-- TAB AUDIO UPLOADER -->
+        <section id="tab-audio" class="tab-content space-y-6">
+            <div>
+                <h2 class="text-xl font-semibold text-white tracking-tight">Audio Uploader</h2>
+                <p class="text-xs text-zinc-400 mt-0.5">Upload audio ke Roblox. Deskripsi otomatis: MCHLERN COMUNITY.</p>
+            </div>
+            <div class="glass-panel p-6 rounded-xl space-y-5">
+                <div id="drop-zone-audio" class="border border-dashed border-white/20 rounded-xl p-8 text-center hover:border-white/40 transition cursor-pointer bg-black/20">
+                    <p class="text-sm font-medium text-zinc-200 mb-1">Drag and drop fail audio di sini</p>
+                    <p class="text-[11px] text-zinc-500 mb-4">Format: MP3, WAV, OGG (Maks 20 fail)</p>
+                    <input type="file" id="file-audio" multiple accept="audio/*" class="hidden">
+                    <button onclick="document.getElementById('file-audio').click()" class="px-4 py-2 rounded-lg bg-white text-black font-medium text-xs hover:bg-zinc-200 transition">Browse Audio</button>
+                </div>
+                <div id="audio-preview-container" class="space-y-3 hidden">
+                    <h3 class="text-xs font-semibold text-zinc-300 uppercase tracking-wider">Audio Preview & Custom Titles</h3>
+                    <div id="audio-items-list" class="space-y-3 max-h-96 overflow-y-auto pr-1"></div>
+                </div>
+                <div id="progress-container" class="space-y-2 hidden">
+                    <div class="flex justify-between text-xs text-zinc-400">
+                        <span id="progress-status-text">Mengupload ke Roblox...</span>
+                        <span id="progress-percentage">0%</span>
+                    </div>
+                    <div class="w-full bg-zinc-800 rounded-full h-2 overflow-hidden border border-white/10">
+                        <div id="progress-bar-fill" class="bg-white h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+                <button onclick="uploadAudio()" id="btn-upload-audio" class="w-full py-3 rounded-lg bg-white text-black font-bold text-xs hover:bg-zinc-200 transition tracking-wider hidden shadow-lg shadow-white/5">UPLOAD TO ROBLOX (0 AUDIO)</button>
+            </div>
+        </section>
 
-        async function init() {
-            if (!discordId) {
-                document.getElementById('user-status').innerText = 'Sila login menggunakan akaun Discord terlebih dahulu.';
-                return;
-            }
+        <!-- TAB AUDIO CONVERTER -->
+        <section id="tab-ytdl" class="tab-content space-y-6 hidden">
+            <div>
+                <h2 class="text-xl font-semibold text-white tracking-tight">Audio Converter (Batch Mode)</h2>
+                <p class="text-xs text-zinc-400 mt-0.5">Fetch hingga 20 link lagu, atur efek bypass copyright, dan upload serentak ke Roblox.</p>
+            </div>
+            
+            <!-- AUDIO EFFECT & BYPASS SETTINGS -->
+            <div class="glass-panel p-6 rounded-xl space-y-4">
+                <h3 class="font-medium text-sm text-white border-b border-white/10 pb-2">Audio Effects & Copyright Bypass Settings</h3>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-zinc-300 mb-1">Speed Multiplier</label>
+                        <input type="number" id="input-speed" step="0.1" value="1.0" oninput="updateSpeedRecommendation()" class="input-box w-full px-3 py-2 rounded-lg text-xs">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-zinc-300 mb-1">Pitch Shift</label>
+                        <input type="number" id="input-pitch" step="0.1" value="1.0" class="input-box w-full px-3 py-2 rounded-lg text-xs">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-zinc-300 mb-1">Volume Gain</label>
+                        <input type="number" id="input-volume" step="0.1" value="1.0" class="input-box w-full px-3 py-2 rounded-lg text-xs">
+                    </div>
+                </div>
 
-            try {
-                const res = await fetch(`/api/discord/user/${discordId}`);
-                const data = await res.json();
-                if (data.success) {
-                    document.getElementById('auth-section').innerHTML = `
-                        <div class="flex items-center gap-3">
-                            <img src="${data.user.avatar}" class="w-10 h-10 rounded-full">
-                            <div>
-                                <p class="font-semibold text-sm">${data.user.globalName}</p>
-                                <p class="text-xs text-emerald-400">Discord Connected</p>
-                            </div>
+                <!-- TEMPLATE BYPASS SPEED -->
+                <div>
+                    <label class="block text-xs font-medium text-zinc-300 mb-1.5">Template Bypass Speed (Klik untuk pilih):</label>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" onclick="applySpeedTemplate(2.3)" class="px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-white text-xs transition border border-white/10">2.3x</button>
+                        <button type="button" onclick="applySpeedTemplate(2.6)" class="px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-white text-xs transition border border-white/10">2.6x</button>
+                        <button type="button" onclick="applySpeedTemplate(1.6)" class="px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-white text-xs transition border border-white/10">1.6x</button>
+                        <button type="button" onclick="applySpeedTemplate(3.0)" class="px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-white text-xs transition border border-white/10">3.0x</button>
+                        <button type="button" onclick="applySpeedTemplate(1.5)" class="px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-white text-xs transition border border-white/10">1.5x</button>
+                    </div>
+                </div>
+
+                <!-- REKOMENDASI PLAYBACK SPEED IN-GAME -->
+                <div class="p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs">
+                    <span class="font-bold">Rekomendasi Playback Speed In-game:</span> <span id="rec-playback-speed" class="font-mono font-bold text-white">1.00</span> 
+                    <p class="text-[10px] text-zinc-400 mt-0.5">Atur nilai ini pada properti Sound/PlaybackSpeed di Roblox Studio agar suara kembali normal.</p>
+                </div>
+            </div>
+
+            <!-- INPUT LINK & BATCH QUEUE -->
+            <div class="glass-panel p-6 rounded-xl space-y-5">
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <input type="text" id="input-media-url" placeholder="Tempel link YouTube atau TikTok (Maks 20)..." class="input-box flex-1 px-4 py-3 rounded-lg text-xs">
+                    <button onclick="fetchAndQueueMedia()" id="btn-fetch" class="px-6 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition tracking-wide shrink-0 shadow-lg shadow-indigo-600/20">Fetch & Add (0/20)</button>
+                </div>
+
+                <div id="batch-queue-container" class="space-y-3 hidden">
+                    <h3 class="text-xs font-semibold text-zinc-300 uppercase tracking-wider">Queue List Audio (Batch)</h3>
+                    <div id="batch-items-list" class="space-y-3 max-h-80 overflow-y-auto pr-1"></div>
+                    <button onclick="uploadBatchYtAudio()" id="btn-upload-batch" class="w-full py-3 rounded-lg bg-white text-black font-bold text-xs hover:bg-zinc-200 transition tracking-wider shadow-lg shadow-white/5">UPLOAD SEMUA KE ROBLOX</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB IMAGE UPLOADER -->
+        <section id="tab-image" class="tab-content space-y-6 hidden">
+            <div>
+                <h2 class="text-xl font-semibold text-white tracking-tight">Image Uploader</h2>
+                <p class="text-xs text-zinc-400 mt-0.5">Upload gambar otomatis JPG. Deskripsi otomatis: MCHLERN COMUNITY.</p>
+            </div>
+            <div class="glass-panel p-6 rounded-xl space-y-5">
+                <div>
+                    <label class="block text-xs font-medium text-zinc-300 mb-1.5">Asset Name (Opsional)</label>
+                    <input type="text" id="image-name" placeholder="Contoh: Custom Decal Logo" class="input-box w-full px-3.5 py-2.5 rounded-lg text-xs">
+                </div>
+                <div id="drop-zone-image" class="border border-dashed border-white/20 rounded-xl p-8 text-center hover:border-white/40 transition cursor-pointer bg-black/20">
+                    <p class="text-sm font-medium text-zinc-200 mb-1">Drag and drop fail gambar di sini</p>
+                    <p class="text-[11px] text-zinc-500 mb-4">Automatik diproses ke JPG</p>
+                    <input type="file" id="file-image" multiple accept="image/*" class="hidden">
+                    <button onclick="document.getElementById('file-image').click()" class="px-4 py-2 rounded-lg bg-white text-black font-medium text-xs hover:bg-zinc-200 transition">Browse Images</button>
+                </div>
+                <div id="image-file-list" class="text-xs text-zinc-400 space-y-1 font-mono"></div>
+                <button onclick="uploadImage()" class="w-full py-2.5 rounded-lg bg-white text-black font-semibold text-xs hover:bg-zinc-200 transition tracking-wide">Upload Image to Roblox</button>
+                <div id="image-loading" class="text-center text-xs text-zinc-400 hidden">Sedang mengupload gambar ke Roblox...</div>
+            </div>
+        </section>
+
+        <!-- TAB HISTORY & LIMIT -->
+        <section id="tab-history" class="tab-content space-y-6 hidden">
+            <div>
+                <h2 class="text-xl font-semibold text-white tracking-tight">History & Limit</h2>
+                <p class="text-xs text-zinc-400 mt-0.5">Monitor baki kuota harian dan sejarah asset.</p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="glass-panel p-5 rounded-xl">
+                    <p class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">Remaining Limit</p>
+                    <h3 id="stat-limit" class="text-3xl font-bold text-white mt-2">10 / 10</h3>
+                    <p class="text-[11px] text-zinc-500 mt-1">Reset setiap 24 jam</p>
+                </div>
+                <div class="glass-panel p-5 rounded-xl">
+                    <p class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">Total Uploads</p>
+                    <h3 id="stat-total" class="text-3xl font-bold text-white mt-2">0</h3>
+                    <p class="text-[11px] text-zinc-500 mt-1">Audio & Image</p>
+                </div>
+            </div>
+            <div class="glass-panel p-6 rounded-xl space-y-4">
+                <h3 class="font-medium text-sm text-white">Upload History</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead class="border-b border-white/10 text-zinc-400">
+                            <tr>
+                                <th class="pb-3 font-medium">Filename</th>
+                                <th class="pb-3 font-medium">Type</th>
+                                <th class="pb-3 font-medium">Asset ID / Status</th>
+                                <th class="pb-3 font-medium">Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-table-body" class="divide-y divide-white/5 font-mono">
+                            <tr><td colspan="4" class="py-4 text-center text-zinc-500 font-sans">No upload history found.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB SETTINGS -->
+        <section id="tab-settings" class="tab-content space-y-6 hidden">
+            <div>
+                <h2 class="text-xl font-semibold text-white tracking-tight">Account Settings</h2>
+                <p class="text-xs text-zinc-400 mt-0.5">Konfigurasi akaun Discord & Roblox.</p>
+            </div>
+            <div class="space-y-5">
+                <div class="glass-panel p-6 rounded-xl flex items-center justify-between">
+                    <div class="flex items-center gap-4">
+                        <img id="settings-discord-avatar" src="" alt="Discord Avatar" class="w-14 h-14 rounded-full border border-white/20 object-cover">
+                        <div>
+                            <p class="text-[10px] text-zinc-400 uppercase tracking-wider font-medium">Discord Account</p>
+                            <h3 id="settings-discord-name" class="font-semibold text-sm text-white mt-0.5"></h3>
+                            <p id="settings-discord-username" class="text-xs text-zinc-400"></p>
                         </div>
-                    `;
-                    document.getElementById('uploader-section').classList.remove('hidden');
-                    if (data.robloxUser) {
-                        document.getElementById('roblox-userid').value = data.robloxUser.userId;
-                        document.getElementById('roblox-apikey').value = data.robloxUser.apiKey;
-                    }
-                    loadHistory();
-                }
-            } catch (e) {
-                console.error(e);
+                    </div>
+                    <button onclick="logoutDiscord()" class="px-4 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 font-medium text-xs border border-red-500/20 transition">Logout Discord</button>
+                </div>
+
+                <div class="glass-panel p-6 rounded-xl space-y-5">
+                    <div id="login-form-container" class="space-y-4">
+                        <h3 class="font-medium text-sm text-white">Hubungkan Akaun Roblox</h3>
+                        <div>
+                            <label class="block text-xs font-medium text-zinc-300 mb-1.5">Roblox User ID</label>
+                            <input type="text" id="input-userid" placeholder="Contoh: 123456789" class="input-box w-full px-3.5 py-2.5 rounded-lg text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-zinc-300 mb-1.5">Open Cloud API Key</label>
+                            <input type="password" id="input-apikey" placeholder="Masukkan API Key..." class="input-box w-full px-3.5 py-2.5 rounded-lg text-xs">
+                        </div>
+                        <button onclick="connectRoblox()" id="btn-connect" class="w-full py-2.5 rounded-lg bg-white text-black font-semibold text-xs hover:bg-zinc-200 transition tracking-wide">Connect Roblox Account</button>
+                    </div>
+                    <div id="profile-connected-container" class="hidden space-y-5 text-center py-2">
+                        <div class="flex flex-col items-center justify-center space-y-3">
+                            <img id="profile-avatar" src="" alt="Avatar" class="w-20 h-20 rounded-full border border-white/20 object-cover">
+                            <h3 id="profile-displayname" class="font-semibold text-sm text-white"></h3>
+                            <p id="profile-username" class="text-xs text-zinc-400"></p>
+                            <span class="inline-block px-2.5 py-1 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Roblox Connected</span>
+                        </div>
+                        <button onclick="logoutRoblox()" class="px-4 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 font-medium text-xs border border-red-500/20 transition">Disconnect Roblox</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script>
+        let currentDiscordUser = null;
+        let currentRobloxUser = null;
+        let selectedAudioFiles = [];
+        let batchQueue = [];
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const discordIdParam = urlParams.get('discordId');
+
+            if (discordIdParam) {
+                localStorage.setItem('discord_id', discordIdParam);
+                window.history.replaceState({}, document.title, window.location.pathname);
             }
+
+            const savedDiscordId = localStorage.getItem('discord_id');
+
+            if (savedDiscordId) {
+                try {
+                    const res = await fetch(`/api/discord/user/${savedDiscordId}`);
+                    const data = await res.json();
+                    if (data.success) {
+                        currentDiscordUser = data.user;
+                        document.getElementById('discord-login-modal').classList.add('hidden');
+                        applyDiscordProfile(data.user);
+
+                        if (data.robloxUser) {
+                            applyRobloxState(data.robloxUser);
+                        }
+                    } else {
+                        localStorage.removeItem('discord_id');
+                        document.getElementById('discord-login-modal').classList.remove('hidden');
+                    }
+                } catch (e) {
+                    document.getElementById('discord-login-modal').classList.remove('hidden');
+                }
+            } else {
+                document.getElementById('discord-login-modal').classList.remove('hidden');
+            }
+            updateSpeedRecommendation();
+        });
+
+        function applyDiscordProfile(user) {
+            document.getElementById('sidebar-profile').classList.remove('hidden');
+            document.getElementById('sidebar-avatar').src = user.avatar;
+            document.getElementById('sidebar-display').textContent = user.globalName;
+            document.getElementById('sidebar-username').textContent = '@' + user.username;
+
+            document.getElementById('settings-discord-avatar').src = user.avatar;
+            document.getElementById('settings-discord-name').textContent = user.globalName;
+            document.getElementById('settings-discord-username').textContent = '@' + user.username;
+            loadHistory();
+        }
+
+        function logoutDiscord() {
+            localStorage.removeItem('discord_id');
+            window.location.reload();
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.remove('hidden');
+            document.getElementById('btn-' + tabId).classList.add('active');
+            if(tabId === 'history') loadHistory();
+        }
+
+        function applyRobloxState(user) {
+            currentRobloxUser = user;
+            document.getElementById('login-form-container').classList.add('hidden');
+            document.getElementById('profile-connected-container').classList.remove('hidden');
+            document.getElementById('profile-avatar').src = user.avatar;
+            document.getElementById('profile-displayname').textContent = user.displayName;
+            document.getElementById('profile-username').textContent = '@' + user.username;
+            loadHistory();
         }
 
         async function connectRoblox() {
-            const userId = document.getElementById('roblox-userid').value;
-            const apiKey = document.getElementById('roblox-apikey').value;
-            if (!discordId || !userId || !apiKey) return alert('Sila isi semua data!');
+            if (!currentDiscordUser) { alert('Sila login Discord terlebih dahulu.'); return; }
+            const userId = document.getElementById('input-userid').value.trim();
+            const apiKey = document.getElementById('input-apikey').value.trim();
+            if (!userId || !apiKey) { alert('Sila isi User ID dan API Key.'); return; }
+            const btn = document.getElementById('btn-connect');
+            btn.textContent = 'Connecting...';
+            try {
+                const res = await fetch('/api/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ discordId: currentDiscordUser.id, userId, apiKey })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    applyRobloxState(data.profile);
+                    alert('Akaun Roblox berjaya disambung.');
+                    switchTab('audio');
+                } else { alert('Gagal: ' + data.message); }
+            } catch (err) { alert('Ralat rangkaian.'); }
+            finally { btn.textContent = 'Connect Roblox Account'; }
+        }
 
-            const res = await fetch('/api/connect', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ discordId, userId, apiKey })
-            });
-            const data = await res.json();
-            if (data.success) {
-                alert('Berhasil menyambungkan ke Roblox!');
-                loadHistory();
-            } else {
-                alert(data.message || 'Gagal menyambungkan.');
+        function logoutRoblox() {
+            currentRobloxUser = null;
+            document.getElementById('login-form-container').classList.remove('hidden');
+            document.getElementById('profile-connected-container').classList.add('hidden');
+            document.getElementById('input-userid').value = '';
+            document.getElementById('input-apikey').value = '';
+            alert('Berhasil disconnect Roblox.');
+        }
+
+        function applySpeedTemplate(val) {
+            document.getElementById('input-speed').value = val;
+            updateSpeedRecommendation();
+        }
+
+        function updateSpeedRecommendation() {
+            const speed = parseFloat(document.getElementById('input-speed').value) || 1.0;
+            const playbackRec = speed > 0 ? (1.0 / speed).toFixed(2) : '1.00';
+            document.getElementById('rec-playback-speed').textContent = playbackRec;
+        }
+
+        async function fetchAndQueueMedia() {
+            const urlInput = document.getElementById('input-media-url');
+            const url = urlInput.value.trim();
+            if (!url) { alert('Sila masukkan link YouTube atau TikTok.'); return; }
+            if (batchQueue.length >= 20) { alert('Maksimum 20 audio dalam satu batch.'); return; }
+
+            const btn = document.getElementById('btn-fetch');
+            btn.textContent = 'Fetching...';
+
+            try {
+                const res = await fetch('/api/fetch-media', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    batchQueue.push({
+                        originalUrl: data.media.originalUrl,
+                        title: data.media.title,
+                        thumbnail: data.media.thumbnail,
+                        customTitle: data.media.title.substring(0, 50)
+                    });
+                    
+                    urlInput.value = ''; // Clear input otomatis setelah fetch
+                    renderBatchQueue();
+                } else {
+                    alert('Gagal mengambil metadata: ' + data.message);
+                }
+            } catch (e) {
+                alert('Ralat rangkaian semasa fetch media.');
+            } finally {
+                btn.textContent = `Fetch & Add (${batchQueue.length}/20)`;
             }
         }
 
-        async function submitQueue() {
-            const url = document.getElementById('media-url').value;
-            const customTitle = document.getElementById('custom-title').value || 'Converted Audio';
-            const speed = document.getElementById('audio-speed').value;
-            const pitch = document.getElementById('audio-pitch').value;
-            const volume = document.getElementById('audio-volume').value;
+        function renderBatchQueue() {
+            const container = document.getElementById('batch-queue-container');
+            const listDiv = document.getElementById('batch-items-list');
+            const btnFetch = document.getElementById('btn-fetch');
 
-            if (!url) return alert('Masukkan link YouTube atau TikTok!');
+            btnFetch.textContent = `Fetch & Add (${batchQueue.length}/20)`;
 
-            const progressContainer = document.getElementById('progress-container');
-            const progressBar = document.getElementById('upload-progress-bar');
-            const progressPercentage = document.getElementById('progress-percentage');
-            const statusText = document.getElementById('progress-status-text');
+            if (batchQueue.length === 0) {
+                container.classList.add('hidden');
+                return;
+            }
 
-            progressContainer.classList.remove('hidden');
-            progressBar.style.width = '20%';
-            progressPercentage.innerText = '20%';
-            statusText.innerText = 'Mengirim antrean & parameter ke server...';
+            container.classList.remove('hidden');
+            listDiv.innerHTML = '';
+
+            batchQueue.forEach((item, index) => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'flex flex-col gap-2 p-3.5 rounded-lg bg-black/40 border border-white/10';
+                itemDiv.innerHTML = `
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-3 overflow-hidden">
+                            <img src="${item.thumbnail}" class="w-10 h-10 rounded object-cover border border-white/10 shrink-0">
+                            <div class="text-xs truncate">
+                                <p class="font-medium text-white truncate">${item.title}</p>
+                                <p class="text-[10px] text-zinc-400 truncate">${item.originalUrl}</p>
+                            </div>
+                        </div>
+                        <button type="button" onclick="removeBatchItem(${index})" class="w-8 h-8 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 flex items-center justify-center font-bold text-xs shrink-0 border border-red-500/20 transition">✕</button>
+                    </div>
+                    <div class="w-full">
+                        <input type="text" oninput="updateBatchTitle(${index}, this.value)" value="${item.customTitle}" placeholder="Custom Title Roblox..." class="input-box w-full px-3 py-2 rounded-md text-xs">
+                    </div>
+                `;
+                listDiv.appendChild(itemDiv);
+            });
+        }
+
+        function removeBatchItem(index) {
+            batchQueue.splice(index, 1);
+            renderBatchQueue();
+        }
+
+        function updateBatchTitle(index, val) {
+            batchQueue[index].customTitle = val;
+        }
+
+        async function uploadBatchYtAudio() {
+            if (!currentDiscordUser) { alert('Sila login Discord.'); return; }
+            if (!currentRobloxUser) { alert('Sila connect akaun Roblox di Setting.'); switchTab('settings'); return; }
+            if (batchQueue.length === 0) { alert('Queue masih kosong.'); return; }
+
+            const speed = document.getElementById('input-speed').value;
+            const pitch = document.getElementById('input-pitch').value;
+            const volume = document.getElementById('input-volume').value;
+
+            const btn = document.getElementById('btn-upload-batch');
+            btn.textContent = `Memproses & Mengupload ${batchQueue.length} Audio ke Roblox...`;
+            btn.disabled = true;
 
             try {
                 const res = await fetch('/api/upload-batch-url', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        discordId,
-                        items: [{ originalUrl: url, customTitle }],
-                        speed,
-                        pitch,
-                        volume
+                        discordId: currentDiscordUser.id,
+                        userId: currentRobloxUser.userId,
+                        apiKey: currentRobloxUser.apiKey,
+                        items: batchQueue,
+                        speed, pitch, volume
                     })
                 });
                 const data = await res.json();
-
                 if (data.success) {
-                    progressBar.style.width = '50%';
-                    progressPercentage.innerText = '50%';
-                    statusText.innerText = 'Diproses Termux worker (Speed & Pitch aktif)...';
-
-                    let step = 50;
-                    const timer = setInterval(() => {
-                        step += 10;
-                        if (step >= 90) step = 90;
-                        progressBar.style.width = step + '%';
-                        progressPercentage.innerText = step + '%';
-                    }, 1000);
-
-                    setTimeout(() => {
-                        clearInterval(timer);
-                        progressBar.style.width = '100%';
-                        progressPercentage.innerText = '100%';
-                        statusText.innerText = 'Berhasil di-upload ke Roblox!';
-                        setTimeout(() => {
-                            progressContainer.classList.add('hidden');
-                            loadHistory();
-                        }, 2000);
-                    }, 5000);
+                    alert('Batch audio converter berjaya diupload ke Roblox!');
+                    batchQueue = [];
+                    renderBatchQueue();
+                    loadHistory();
+                    switchTab('history');
                 } else {
-                    alert(data.message);
-                    progressContainer.classList.add('hidden');
+                    alert('Gagal batch upload: ' + data.message);
                 }
             } catch (err) {
-                alert('Gagal menghubungi server.');
-                progressContainer.classList.add('hidden');
+                alert('Ralat semasa menghantar batch media.');
+            } finally {
+                btn.textContent = 'UPLOAD SEMUA KE ROBLOX';
+                btn.disabled = false;
             }
+        }
+
+        document.getElementById('file-audio').addEventListener('change', (e) => {
+            const newFiles = Array.from(e.target.files);
+            selectedAudioFiles = selectedAudioFiles.concat(newFiles);
+            renderAudioList();
+        });
+
+        function renderAudioList() {
+            const container = document.getElementById('audio-preview-container');
+            const listDiv = document.getElementById('audio-items-list');
+            const uploadBtn = document.getElementById('btn-upload-audio');
+
+            if (selectedAudioFiles.length === 0) {
+                container.classList.add('hidden');
+                uploadBtn.classList.add('hidden');
+                return;
+            }
+
+            container.classList.remove('hidden');
+            uploadBtn.classList.remove('hidden');
+            uploadBtn.textContent = `UPLOAD TO ROBLOX (${selectedAudioFiles.length} AUDIO)`;
+            listDiv.innerHTML = '';
+
+            selectedAudioFiles.forEach((file, index) => {
+                const objectUrl = URL.createObjectURL(file);
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'flex flex-col gap-2 p-3.5 rounded-lg bg-black/40 border border-white/10';
+
+                const audioObj = document.createElement('audio');
+                audioObj.src = objectUrl;
+
+                audioObj.addEventListener('loadedmetadata', () => {
+                    const mins = Math.floor(audioObj.duration / 60);
+                    const secs = Math.floor(audioObj.duration % 60).toString().padStart(2, '0');
+                    const durSpan = itemDiv.querySelector('.audio-duration');
+                    if(durSpan) durSpan.textContent = `${mins}:${secs}`;
+                });
+
+                itemDiv.innerHTML = `
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-3 overflow-hidden">
+                            <button type="button" onclick="togglePlayPreview('${objectUrl}', this)" class="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center font-bold text-xs shrink-0 transition">▶</button>
+                            <div class="text-xs truncate">
+                                <p class="font-medium text-white truncate">${file.name}</p>
+                                <p class="text-[10px] text-zinc-400 audio-duration">Loading...</p>
+                            </div>
+                        </div>
+                        <button type="button" onclick="removeAudioItem(${index})" class="w-8 h-8 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 flex items-center justify-center font-bold text-xs shrink-0 border border-red-500/20 transition" title="Delete item">✕</button>
+                    </div>
+                    <div class="w-full">
+                        <input type="text" data-index="${index}" placeholder="Custom Title (Tajuk Lagu)" value="${file.name.substring(0, file.name.lastIndexOf('.')) || file.name}" class="audio-custom-title input-box w-full px-3 py-2 rounded-md text-xs">
+                    </div>
+                `;
+                listDiv.appendChild(itemDiv);
+            });
+        }
+
+        function removeAudioItem(index) {
+            selectedAudioFiles.splice(index, 1);
+            renderAudioList();
+        }
+
+        function togglePlayPreview(url, btnElement) {
+            if (activeAudioElement && activePlayButton === btnElement) {
+                if (activeAudioElement.paused) {
+                    activeAudioElement.play();
+                    btnElement.textContent = '❚❚';
+                } else {
+                    activeAudioElement.pause();
+                    btnElement.textContent = '▶';
+                }
+                return;
+            }
+
+            if (activeAudioElement) {
+                activeAudioElement.pause();
+                if (activePlayButton) activePlayButton.textContent = '▶';
+            }
+
+            activeAudioElement = new Audio(url);
+            activePlayButton = btnElement;
+            activeAudioElement.play();
+            btnElement.textContent = '❚❚';
+
+            activeAudioElement.addEventListener('ended', () => {
+                btnElement.textContent = '▶';
+                activeAudioElement = null;
+                activePlayButton = null;
+            });
+        }
+
+        async function uploadAudio() {
+            if (!currentDiscordUser) { alert('Sila login Discord.'); return; }
+            if (!currentRobloxUser) { alert('Sila connect akaun Roblox terlebih dahulu di Setting.'); switchTab('settings'); return; }
+            if (selectedAudioFiles.length === 0) { alert('Pilih fail audio.'); return; }
+
+            const formData = new FormData();
+            formData.append('discordId', currentDiscordUser.id);
+            formData.append('userId', currentRobloxUser.userId);
+            formData.append('apiKey', currentRobloxUser.apiKey);
+
+            const titleInputs = document.querySelectorAll('.audio-custom-title');
+            titleInputs.forEach((input, index) => {
+                formData.append('customNames', input.value || selectedAudioFiles[index].name);
+                formData.append('audios', selectedAudioFiles[index]);
+            });
+
+            const progressContainer = document.getElementById('progress-container');
+            const progressBarFill = document.getElementById('progress-bar-fill');
+            const progressPercentage = document.getElementById('progress-percentage');
+            const statusText = document.getElementById('progress-status-text');
+            const uploadBtn = document.getElementById('btn-upload-audio');
+
+            progressContainer.classList.remove('hidden');
+            uploadBtn.classList.add('hidden');
+            progressBarFill.style.width = '10%';
+            progressPercentage.textContent = '10%';
+            statusText.textContent = `Menghantar ${selectedAudioFiles.length} audio ke pelayan...`;
+
+            try {
+                let currentProgress = 10;
+                const progressInterval = setInterval(() => {
+                    if (currentProgress < 90) {
+                        currentProgress += 5;
+                        progressBarFill.style.width = currentProgress + '%';
+                        progressPercentage.textContent = currentProgress + '%';
+                        if(currentProgress > 40) statusText.textContent = 'Sedang diproses & polling ke Roblox Open Cloud...';
+                    }
+                }, 800);
+
+                const res = await fetch('/api/upload-audio', { method: 'POST', body: formData });
+                clearInterval(progressInterval);
+
+                const data = await res.json();
+                if (data.success) {
+                    progressBarFill.style.width = '100%';
+                    progressPercentage.textContent = '100%';
+                    statusText.textContent = 'Upload berjaya sepenuhnya!';
+                    
+                    loadHistory();
+
+                    alert('Upload audio berjaya dan siap diproses ke Roblox!');
+                    
+                    setTimeout(() => {
+                        progressContainer.classList.add('hidden');
+                        document.getElementById('file-audio').value = '';
+                        document.getElementById('audio-preview-container').classList.add('hidden');
+                        selectedAudioFiles = [];
+                    }, 1200);
+                } else {
+                    alert('Gagal: ' + data.message);
+                    progressContainer.classList.add('hidden');
+                    uploadBtn.classList.remove('hidden');
+                }
+            } catch (err) {
+                alert('Ralat semasa menghantar fail.');
+                progressContainer.classList.add('hidden');
+                uploadBtn.classList.remove('hidden');
+            }
+        }
+
+        async function uploadImage() {
+            if (!currentDiscordUser || !currentRobloxUser) { alert('Sila login Discord dan connect Roblox.'); switchTab('settings'); return; }
+            const filesInput = document.getElementById('file-image');
+            const assetName = document.getElementById('image-name').value;
+            if (filesInput.files.length === 0) { alert('Pilih fail gambar.'); return; }
+
+            const formData = new FormData();
+            formData.append('discordId', currentDiscordUser.id);
+            formData.append('userId', currentRobloxUser.userId);
+            formData.append('apiKey', currentRobloxUser.apiKey);
+            formData.append('assetName', assetName);
+            for (let file of filesInput.files) formData.append('images', file);
+
+            document.getElementById('image-loading').classList.remove('hidden');
+            try {
+                const res = await fetch('/api/upload-image', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (data.success) {
+                    loadHistory();
+                    alert('Upload gambar berjaya!');
+                    filesInput.value = '';
+                    document.getElementById('image-name').value = '';
+                    document.getElementById('image-file-list').innerHTML = '';
+                } else { alert('Gagal: ' + data.message); }
+            } catch (err) { alert('Ralat semasa upload.'); }
+            finally { document.getElementById('image-loading').classList.add('hidden'); }
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Asset ID berjaya disalin: ' + text);
+            }).catch(err => {
+                alert('Gagal menyalin ID.');
+            });
         }
 
         async function loadHistory() {
-            if (!discordId) return;
-            const res = await fetch(`/api/history/${discordId}`);
-            const data = await res.json();
-            if (data.success) {
-                const list = document.getElementById('history-list');
-                if (data.history.length === 0) {
-                    list.innerHTML = '<p>Belum ada riwayat upload.</p>';
-                    return;
+            if (!currentDiscordUser) return;
+            try {
+                const res = await fetch(`/api/history/${currentDiscordUser.id}`);
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById('stat-limit').textContent = data.remainingLimit + ' / 10';
+                    document.getElementById('stat-total').textContent = data.totalUpload;
+                    const tbody = document.getElementById('history-table-body');
+                    if (data.history.length === 0) {
+                        tbody.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-zinc-500 font-sans">No upload history found.</td></tr>`;
+                        return;
+                    }
+                    tbody.innerHTML = data.history.map(item => {
+                        const displayId = item.assetId && item.assetId !== 'Gagal' ? item.assetId : (item.status || 'Sedang Diproses');
+                        const isNumericId = /^\d+$/.test(displayId);
+                        
+                        return `
+                            <tr class="hover:bg-white/5">
+                                <td class="py-3 font-medium text-white">${item.name}</td>
+                                <td class="py-3"><span class="px-2 py-0.5 rounded text-[10px] font-medium ${item.type === 'Audio' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'bg-pink-500/10 text-pink-400 border border-pink-500/20'}">${item.type}</span></td>
+                                <td class="py-3">
+                                    <div class="flex items-center gap-2">
+                                        <span class="${isNumericId ? 'text-emerald-400 font-bold' : 'text-amber-400'}">${isNumericId ? 'ID: ' + displayId : displayId}</span>
+                                        ${isNumericId ? `<button onclick="copyToClipboard('${displayId}')" class="px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-white text-[10px] transition border border-white/10">Copy ID</button>` : ''}
+                                    </div>
+                                </td>
+                                <td class="py-3 text-zinc-500">${item.time}</td>
+                            </tr>
+                        `;
+                    }).join('');
                 }
-                list.innerHTML = data.history.map(h => `
-                    <div class="bg-slate-800 p-2 rounded flex justify-between items-center">
-                        <div>
-                            <p class="font-medium text-white">${h.name}</p>
-                            <p class="text-slate-400">Asset ID: <span class="text-indigo-400">${h.assetId}</span></p>
-                        </div>
-                        <span class="text-emerald-400">${h.status}</span>
-                    </div>
-                `).join('');
-            }
+            } catch (err) { console.error(err); }
         }
 
-        init();
+        document.getElementById('file-image').addEventListener('change', (e) => {
+            document.getElementById('image-file-list').innerHTML = Array.from(e.target.files).map(f => `- ${f.name} (Auto JPG)`).join('<br>');
+        });
     </script>
 </body>
 </html>
