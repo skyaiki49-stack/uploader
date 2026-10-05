@@ -193,6 +193,7 @@ app.post('/api/upload-batch-url', async (req, res) => {
         return res.status(400).json({ success: false, message: `Had harian terlampaui. Baki had: ${10 - limitInfo.count}` });
     }
 
+    // Menangkap nilai pitch dan speed yang dikirim dari web panel
     for (let item of items) {
         db.limits[discordId].count += 1;
         db.queue.push({
@@ -202,14 +203,14 @@ app.post('/api/upload-batch-url', async (req, res) => {
             apiKey: robloxUser.apiKey,
             originalUrl: item.originalUrl,
             customTitle: item.customTitle || 'Converted_Audio',
-            speed: speed || 1.0,
-            pitch: pitch || 1.0,
-            volume: volume || 1.0
+            speed: Number(speed) || 1.0,
+            pitch: Number(pitch) || 1.0,
+            volume: Number(volume) || 1.0
         });
     }
 
     writeDB(db);
-    res.json({ success: true, message: `${items.length} audio dimasukkan ke antrean worker Termux.` });
+    res.json({ success: true, message: `${items.length} audio dimasukkan ke antrean worker dengan speed ${speed}x & pitch ${pitch}x.` });
 });
 
 app.get('/api/worker/pending', (req, res) => {
@@ -242,14 +243,6 @@ app.post('/api/worker/report', upload.single('audio'), async (req, res) => {
 
     if (file && fs.existsSync(file.path)) fs.unlinkSync(file.path);
     res.json({ success: true });
-});
-
-app.post('/api/upload-audio', upload.array('audios', 20), async (req, res) => {
-    res.json({ success: false, message: 'Sila gunakan Audio Converter worker.' });
-});
-
-app.post('/api/upload-image', upload.array('images', 10), async (req, res) => {
-    res.json({ success: false, message: 'Sila gunakan tab Settings.' });
 });
 
 app.listen(PORT, () => { console.log(`Server berjalan di port ${PORT}`); });
