@@ -238,24 +238,12 @@ app.post('/api/upload-batch-url', async (req, res) => {
             const tempInputPath = path.join('uploads', `in_${Date.now()}.mp3`);
             const tempOutputPath = path.join('uploads', `out_${Date.now()}.mp3`);
 
-            let audioBuffer;
             try {
-                // Menggunakan API converter stabil untuk mengambil stream audio sesuai link yang di-paste
-                const converterRes = await fetch(`https://api.siputzx.my.id/api/d/ytmp3?url=${encodeURIComponent(item.originalUrl)}`);
-                const convData = await converterRes.json();
-                if (convData && convData.status && convData.data && convData.data.dl) {
-                    const audioStreamRes = await fetch(convData.data.dl);
-                    audioBuffer = await audioStreamRes.buffer();
-                }
-            } catch (e) {}
-
-            if (!audioBuffer || audioBuffer.length < 5000) {
-                // Fallback jika API converter utama gagal mendownload langsung
-                const fallbackRes = await fetch(item.originalUrl);
-                audioBuffer = await fallbackRes.buffer();
+                // Menggunakan yt-dlp secara langsung dengan force IPv6
+                execSync(`python3 -m yt_dlp -x --audio-format mp3 --force-ipv6 -o "${tempInputPath}" "${item.originalUrl}"`);
+            } catch (err) {
+                throw new Error("Gagal download audio dari URL, mungkin terblokir atau limit.");
             }
-
-            fs.writeFileSync(tempInputPath, audioBuffer);
 
             // Terapkan efek speed, volume, dan pitch dengan FFmpeg secara realtime
             const spd = Number(speed) || 1.0;
