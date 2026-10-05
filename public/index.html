@@ -46,7 +46,7 @@
         </div>
         <div id="sidebar-profile" class="glass-panel p-3 rounded-lg mt-6 border border-white/10 bg-black/40">
             <div class="flex items-center gap-3">
-                <img id="sidebar-avatar" src="" alt="Avatar" class="w-8 h-8 rounded-full border border-white/20 object-cover">
+                <img id="sidebar-avatar" alt="Avatar" class="w-8 h-8 rounded-full border border-white/20 object-cover">
                 <div class="overflow-hidden">
                     <p id="sidebar-display" class="font-medium text-xs text-white truncate"></p>
                     <p id="sidebar-username" class="text-[10px] text-zinc-400 truncate"></p>
@@ -140,6 +140,18 @@
                 <div id="batch-queue-container" class="space-y-3 hidden">
                     <h3 class="text-xs font-semibold text-zinc-300 uppercase tracking-wider">Queue List Audio (Batch)</h3>
                     <div id="batch-items-list" class="space-y-3 max-h-80 overflow-y-auto pr-1"></div>
+                    
+                    <!-- PROGRESS BAR REAL-TIME KHUSUS AUDIO CONVERTER (SAMA SEPERTI AUDIO UPLOADER) -->
+                    <div id="batch-progress-container" class="space-y-2 hidden mt-3">
+                        <div class="flex justify-between text-xs text-zinc-400">
+                            <span id="batch-progress-status-text">Mengirim antrean ke worker Termux...</span>
+                            <span id="batch-progress-percentage">0%</span>
+                        </div>
+                        <div class="w-full bg-zinc-800 rounded-full h-2 overflow-hidden border border-white/10">
+                            <div id="batch-progress-bar-fill" class="bg-white h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                    </div>
+
                     <button onclick="uploadBatchYtAudio()" id="btn-upload-batch" class="w-full py-3 rounded-lg bg-white text-black font-bold text-xs hover:bg-zinc-200 transition tracking-wider shadow-lg shadow-white/5">UPLOAD SEMUA KE ROBLOX</button>
                 </div>
             </div>
@@ -215,7 +227,7 @@
             <div class="space-y-5">
                 <div class="glass-panel p-6 rounded-xl flex items-center justify-between">
                     <div class="flex items-center gap-4">
-                        <img id="settings-discord-avatar" src="" alt="Discord Avatar" class="w-14 h-14 rounded-full border border-white/20 object-cover">
+                        <img id="settings-discord-avatar" alt="Discord Avatar" class="w-14 h-14 rounded-full border border-white/20 object-cover">
                         <div>
                             <p class="text-[10px] text-zinc-400 uppercase tracking-wider font-medium">Discord Account</p>
                             <h3 id="settings-discord-name" class="font-semibold text-sm text-white mt-0.5"></h3>
@@ -240,7 +252,7 @@
                     </div>
                     <div id="profile-connected-container" class="hidden space-y-5 text-center py-2">
                         <div class="flex flex-col items-center justify-center space-y-3">
-                            <img id="profile-avatar" src="" alt="Avatar" class="w-20 h-20 rounded-full border border-white/20 object-cover">
+                            <img id="profile-avatar" alt="Avatar" class="w-20 h-20 rounded-full border border-white/20 object-cover">
                             <h3 id="profile-displayname" class="font-semibold text-sm text-white"></h3>
                             <p id="profile-username" class="text-xs text-zinc-400"></p>
                             <span class="inline-block px-2.5 py-1 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Roblox Connected</span>
@@ -256,6 +268,8 @@
         let currentRobloxUser = null;
         let selectedAudioFiles = [];
         let batchQueue = [];
+        let activeAudioElement = null;
+        let activePlayButton = null;
 
         window.addEventListener('DOMContentLoaded', async () => {
             const urlParams = new URLSearchParams(window.location.search);
@@ -394,8 +408,7 @@
                         thumbnail: data.media.thumbnail,
                         customTitle: data.media.title.substring(0, 50)
                     });
-                    
-                    urlInput.value = ''; // Clear input otomatis setelah fetch
+                    urlInput.value = '';
                     renderBatchQueue();
                 } else {
                     alert('Gagal mengambil metadata: ' + data.message);
@@ -428,13 +441,13 @@
                 itemDiv.innerHTML = `
                     <div class="flex items-center justify-between gap-3">
                         <div class="flex items-center gap-3 overflow-hidden">
-                            <img src="${item.thumbnail}" class="w-10 h-10 rounded object-cover border border-white/10 shrink-0">
+                            <img src="${item.thumbnail}" alt="Thumbnail" class="w-10 h-10 rounded object-cover border border-white/10 shrink-0">
                             <div class="text-xs truncate">
                                 <p class="font-medium text-white truncate">${item.title}</p>
                                 <p class="text-[10px] text-zinc-400 truncate">${item.originalUrl}</p>
                             </div>
                         </div>
-                        <button type="button" onclick="removeBatchItem(${index})" class="w-8 h-8 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 flex items-center justify-center font-bold text-xs shrink-0 border border-red-500/20 transition">✕</button>
+                        <button type="button" onclick="removeBatchItem(${index})" class="w-8 h-8 rounded-lg bg-red-500/15 hover:bg-red-500/25 text-red-400 flex items-center justify-center font-bold text-xs shrink-0 border border-red-500/20 transition">✕</button>
                     </div>
                     <div class="w-full">
                         <input type="text" oninput="updateBatchTitle(${index}, this.value)" value="${item.customTitle}" placeholder="Custom Title Roblox..." class="input-box w-full px-3 py-2 rounded-md text-xs">
@@ -462,11 +475,29 @@
             const pitch = document.getElementById('input-pitch').value;
             const volume = document.getElementById('input-volume').value;
 
-            const btn = document.getElementById('btn-upload-batch');
-            btn.textContent = `Memproses & Mengupload ${batchQueue.length} Audio ke Roblox...`;
-            btn.disabled = true;
+            const progressContainer = document.getElementById('batch-progress-container');
+            const progressBarFill = document.getElementById('batch-progress-bar-fill');
+            const progressPercentage = document.getElementById('batch-progress-percentage');
+            const statusText = document.getElementById('batch-progress-status-text');
+            const btnUpload = document.getElementById('btn-upload-batch');
+
+            progressContainer.classList.remove('hidden');
+            btnUpload.classList.add('hidden');
+            progressBarFill.style.width = '15%';
+            progressPercentage.textContent = '15%';
+            statusText.textContent = `Mengirim antrean ke worker (Speed: ${speed}, Pitch: ${pitch})...`;
 
             try {
+                let currentProgress = 15;
+                const progressInterval = setInterval(() => {
+                    if (currentProgress < 90) {
+                        currentProgress += 10;
+                        progressBarFill.style.width = currentProgress + '%';
+                        progressPercentage.textContent = currentProgress + '%';
+                        if(currentProgress > 40) statusText.textContent = 'Termux worker sedang memproses & upload ke Roblox...';
+                    }
+                }, 1000);
+
                 const res = await fetch('/api/upload-batch-url', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -478,21 +509,34 @@
                         speed, pitch, volume
                     })
                 });
+                
+                clearInterval(progressInterval);
                 const data = await res.json();
+                
                 if (data.success) {
-                    alert('Batch audio converter berjaya diupload ke Roblox!');
+                    progressBarFill.style.width = '100%';
+                    progressPercentage.textContent = '100%';
+                    statusText.textContent = 'Batch audio converter berjaya di-upload!';
+                    
+                    alert('Batch audio converter berhasil dikirim dengan Pitch & Speed aktif!');
                     batchQueue = [];
                     renderBatchQueue();
                     loadHistory();
-                    switchTab('history');
+                    
+                    setTimeout(() => {
+                        progressContainer.classList.add('hidden');
+                        btnUpload.classList.remove('hidden');
+                        switchTab('history');
+                    }, 1500);
                 } else {
                     alert('Gagal batch upload: ' + data.message);
+                    progressContainer.classList.add('hidden');
+                    btnUpload.classList.remove('hidden');
                 }
             } catch (err) {
                 alert('Ralat semasa menghantar batch media.');
-            } finally {
-                btn.textContent = 'UPLOAD SEMUA KE ROBLOX';
-                btn.disabled = false;
+                progressContainer.classList.add('hidden');
+                btnUpload.classList.remove('hidden');
             }
         }
 
@@ -542,7 +586,7 @@
                                 <p class="text-[10px] text-zinc-400 audio-duration">Loading...</p>
                             </div>
                         </div>
-                        <button type="button" onclick="removeAudioItem(${index})" class="w-8 h-8 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 flex items-center justify-center font-bold text-xs shrink-0 border border-red-500/20 transition" title="Delete item">✕</button>
+                        <button type="button" onclick="removeAudioItem(${index})" class="w-8 h-8 rounded-lg bg-red-500/15 hover:bg-red-500/25 text-red-400 flex items-center justify-center font-bold text-xs shrink-0 border border-red-500/20 transition" title="Delete item">✕</button>
                     </div>
                     <div class="w-full">
                         <input type="text" data-index="${index}" placeholder="Custom Title (Tajuk Lagu)" value="${file.name.substring(0, file.name.lastIndexOf('.')) || file.name}" class="audio-custom-title input-box w-full px-3 py-2 rounded-md text-xs">
@@ -610,7 +654,7 @@
 
             progressContainer.classList.remove('hidden');
             uploadBtn.classList.add('hidden');
-            progressBarFill.style.width = '10%';
+            progressBarFill.style.width = '10%A';
             progressPercentage.textContent = '10%';
             statusText.textContent = `Menghantar ${selectedAudioFiles.length} audio ke pelayan...`;
 
@@ -635,7 +679,6 @@
                     statusText.textContent = 'Upload berjaya sepenuhnya!';
                     
                     loadHistory();
-
                     alert('Upload audio berjaya dan siap diproses ke Roblox!');
                     
                     setTimeout(() => {
@@ -712,7 +755,7 @@
                         return `
                             <tr class="hover:bg-white/5">
                                 <td class="py-3 font-medium text-white">${item.name}</td>
-                                <td class="py-3"><span class="px-2 py-0.5 rounded text-[10px] font-medium ${item.type === 'Audio' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'bg-pink-500/10 text-pink-400 border border-pink-500/20'}">${item.type}</span></td>
+                                <td class="py-3"><span class="px-2 py-0.5 rounded text-[10px] font-medium ${item.type === 'Audio' ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20' : 'bg-pink-500/15 text-pink-400 border border-pink-500/20'}">${item.type}</span></td>
                                 <td class="py-3">
                                     <div class="flex items-center gap-2">
                                         <span class="${isNumericId ? 'text-emerald-400 font-bold' : 'text-amber-400'}">${isNumericId ? 'ID: ' + displayId : displayId}</span>
