@@ -57,29 +57,6 @@ function checkAndUseLimit(discordId, countToAdd = 1) {
     return db.limits[discordId];
 }
 
-async function pollOperationStatus(operationPath, apiKey) {
-    const maxRetries = 30;
-    const delayMs = 4000;
-    for (let i = 0; i < maxRetries; i++) {
-        try {
-            await new Promise(resolve => setTimeout(resolve, delayMs));
-            const res = await fetch(`https://apis.roblox.com/${operationPath}`, {
-                headers: { 'x-api-key': apiKey }
-            });
-            if (!res.ok) continue;
-            const data = await res.json();
-            if (data.done) {
-                if (data.response && data.response.assetId) {
-                    return { success: true, assetId: data.response.assetId };
-                } else if (data.error) {
-                    return { success: false, message: data.error.message || 'Gagal diproses Roblox' };
-                }
-            }
-        } catch (e) {}
-    }
-    return { success: false, message: 'Timeout menunggu proses Roblox' };
-}
-
 app.get('/auth/discord', (req, res) => {
     if (!CLIENT_ID || !REDIRECT_URI) {
         return res.status(500).send('Konfigurasi Discord Client ID / Redirect URI belum diatur.');
@@ -201,7 +178,6 @@ app.post('/api/fetch-media', async (req, res) => {
     }
 });
 
-// Endpoint untuk memasukkan tugas ke antrean (Queue) dari web panel
 app.post('/api/upload-batch-url', async (req, res) => {
     const { discordId, items, speed, pitch, volume } = req.body;
     if (!discordId || !items || !Array.isArray(items) || items.length === 0) {
@@ -217,11 +193,10 @@ app.post('/api/upload-batch-url', async (req, res) => {
         return res.status(400).json({ success: false, message: `Had harian terlampaui. Baki had: ${10 - limitInfo.count}` });
     }
 
-    // Masukkan ke database queue agar bisa diambil oleh worker Termux kamu
     for (let item of items) {
         db.limits[discordId].count += 1;
         db.queue.push({
-            id: 'job_' + Date.now() + Math.random().toString(36.substring(2, 7)),
+            id: 'job_' + Date.now() + Math.random().toString(36).substring(2, 7),
             discordId,
             userId: robloxUser.userId,
             apiKey: robloxUser.apiKey,
@@ -237,12 +212,10 @@ app.post('/api/upload-batch-url', async (req, res) => {
     res.json({ success: true, message: `${items.length} audio dimasukkan ke antrean worker Termux.` });
 });
 
-// --- API KHUSUS UNTUK WORKER TERMUX ---
-// 1. Ambil tugas antrean yang pending
 app.get('/api/worker/pending', (req, res) => {
     let db = readDB();
     if (db.queue && db.queue.length > 0) {
-        const job = db.queue.shift(); // Ambil tugas pertama
+        const job = db.queue.shift();
         writeDB(db);
         res.json({ success: true, job });
     } else {
@@ -250,9 +223,8 @@ app.get('/api/worker/pending', (req, res) => {
     }
 });
 
-// 2. Laporkan hasil upload dari Termux ke history web
 app.post('/api/worker/report', upload.single('audio'), async (req, res) => {
-    const { discordId, userId, apiKey, customTitle, assetIdStatus, statusMsg } = req.body;
+    const { discordId, customTitle, assetIdStatus, statusMsg } = req.body;
     const file = req.file;
 
     let db = readDB();
@@ -270,6 +242,14 @@ app.post('/api/worker/report', upload.single('audio'), async (req, res) => {
 
     if (file && fs.existsSync(file.path)) fs.unlinkSync(file.path);
     res.json({ success: true });
+});
+
+app.post('/api/upload-audio', upload.array('audios', 20), async (req, res) => {
+    res.json({ success: false, message: 'Sila gunakan Audio Converter worker.' });
+});
+
+app.post('/api/upload-image', upload.array('images', 10), async (req, res) => {
+    res.json({ success: false, message: 'Sila gunakan tab Settings.' });
 });
 
 app.listen(PORT, () => { console.log(`Server berjalan di port ${PORT}`); });
