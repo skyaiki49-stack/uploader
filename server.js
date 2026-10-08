@@ -239,11 +239,34 @@ app.post('/api/upload-batch-url', async (req, res) => {
             const tempOutputPath = path.join('uploads', `out_${Date.now()}.mp3`);
 
             try {
-                // Menggunakan yt-dlp secara langsung dengan force IPv6
-                execSync(`yt-dlp -x --audio-format mp3 --force-ipv6 -o "${tempInputPath}" "${item.originalUrl}"`);
+                // Menggunakan Cobalt API untuk bypass IP block tanpa butuh yt-dlp atau Python
+                const cobaltRes = await fetch("https://api.cobalt.tools/api/json", {
+                    method: "POST",
+                    headers: {
+                        "Accept": "application/json",
+                        "Content-Type": "application/json",
+                        "User-Agent": "Mchlern-Uploader/1.0"
+                    },
+                    body: JSON.stringify({
+                        url: item.originalUrl,
+                        isAudioOnly: true,
+                        aFormat: "mp3"
+                    })
+                });
+
+                if (!cobaltRes.ok) throw new Error("Gagal menghubungi server Cobalt API");
+                const cobaltData = await cobaltRes.json();
+                
+                if (cobaltData.status === "error" || !cobaltData.url) {
+                    throw new Error(cobaltData.text || "Cobalt API gagal mengekstrak audio");
+                }
+
+                const audioStreamRes = await fetch(cobaltData.url);
+                const audioBuffer = await audioStreamRes.buffer();
+                fs.writeFileSync(tempInputPath, audioBuffer);
             } catch (err) {
-                console.error("ERROR YT-DLP:", err.stderr ? err.stderr.toString() : err.message);
-                throw new Error("Gagal download audio dari URL (cek log server).");
+                console.error("ERROR COBALT:", err.message);
+                throw new Error("Gagal download audio dari URL (mungkin terblokir atau salah link).");
             }
 
             // Terapkan efek speed, volume, dan pitch dengan FFmpeg secara realtime
