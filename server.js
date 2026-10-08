@@ -240,7 +240,7 @@ app.post('/api/upload-batch-url', async (req, res) => {
 
             try {
                 // Menggunakan yt-dlp secara langsung dengan force IPv6
-                execSync(`python -m yt_dlp -x --audio-format mp3 --force-ipv6 -o "${tempInputPath}" "${item.originalUrl}"`);
+                execSync(`yt-dlp -x --audio-format mp3 --force-ipv6 -o "${tempInputPath}" "${item.originalUrl}"`);
             } catch (err) {
                 console.error("ERROR YT-DLP:", err.stderr ? err.stderr.toString() : err.message);
                 throw new Error("Gagal download audio dari URL (cek log server).");
