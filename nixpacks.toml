@@ -1,5 +1,7 @@
+providers = ["node", "python"]
+
 [phases.setup]
-nixPkgs = ["...", "ffmpeg", "python3"]
+nixPkgs = ["...", "ffmpeg"]
 
 [phases.install]
-cmds = ["npm install", "python3 -m pip install -U yt-dlp"]
+cmds = ["npm install", "pip install -U yt-dlp"]

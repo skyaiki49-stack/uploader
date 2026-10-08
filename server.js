@@ -240,9 +240,10 @@ app.post('/api/upload-batch-url', async (req, res) => {
 
             try {
                 // Menggunakan yt-dlp secara langsung dengan force IPv6
-                execSync(`python3 -m yt_dlp -x --audio-format mp3 --force-ipv6 -o "${tempInputPath}" "${item.originalUrl}"`);
+                execSync(`yt-dlp -x --audio-format mp3 --force-ipv6 -o "${tempInputPath}" "${item.originalUrl}"`);
             } catch (err) {
-                throw new Error("Gagal download audio dari URL, mungkin terblokir atau limit.");
+                console.error("ERROR YT-DLP:", err.stderr ? err.stderr.toString() : err.message);
+                throw new Error("Gagal download audio dari URL (cek log server).");
             }
 
             // Terapkan efek speed, volume, dan pitch dengan FFmpeg secara realtime
@@ -253,6 +254,7 @@ app.post('/api/upload-batch-url', async (req, res) => {
             try {
                 execSync(`ffmpeg -i "${tempInputPath}" -filter:a "${filterStr}" -y "${tempOutputPath}"`, { timeout: 25000 });
             } catch (e) {
+                console.error("ERROR FFMPEG:", e.stderr ? e.stderr.toString() : e.message);
                 fs.copyFileSync(tempInputPath, tempOutputPath);
             }
 
@@ -294,7 +296,10 @@ app.post('/api/upload-batch-url', async (req, res) => {
             results.push(resultItem);
             db.history.unshift({ ...resultItem, discordId });
         } catch (err) {
-            results.push({ name: finalTitle, type: 'Audio', assetId: 'Gagal', status: err.message, time: new Date().toLocaleString() });
+            console.error("ERROR BATCH ITEM:", err.message);
+            let failedItem = { name: finalTitle, type: 'Audio', assetId: 'Gagal', status: err.message, time: new Date().toLocaleString() };
+            results.push(failedItem);
+            db.history.unshift({ ...failedItem, discordId });
         }
     }
 
